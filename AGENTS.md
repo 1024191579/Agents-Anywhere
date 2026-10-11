@@ -34,12 +34,12 @@ Agents Anywhere 是一个跨设备的 Agent 工作台。工作设备上的 **Con
 - 仓库根目录**没有**统一的构建命令，每个子项目单独安装依赖、单独检查。
 - **不提交 lockfile**（`yarn.lock`、`uv.lock`、`package-lock.json` 等已被 `.gitignore` 忽略），不要把它们加回来。
 - 只运行和修改有关的 headless 检查：
-  - Server：`cd server && uv run ruff check . --exclude .venv && uv run pytest -q`（`tests/test_connector_pipeline.py` 会导入 Connector 包，先执行一次 `uv pip install --python .venv/bin/python ../connector`；临时跳过用 `--ignore=tests/test_connector_pipeline.py`）
+  - Server：`cd server && uv run ruff check . --exclude .venv && uv run pytest -q`（需要 `AGENT_SERVER_TEST_DB_URL`；`tests/test_connector_pipeline.py` 会导入 Connector 包，先执行一次 `uv pip install --python .venv/bin/python ../connector`）
   - Connector：`cd connector && uv run ruff check connector tests && uv run pytest -q`
   - Web：`cd web-next && yarn test && yarn typecheck && yarn protocol:check`
   - Desktop：`cd desktop-workbench && yarn test:main && yarn renderer:typecheck`
 - 本地联调用 `./local-up.sh`（Server + Web，可加 `--with-connector`）或 `./desktop-local-up.sh`。**不要**使用 `--reset-data`，除非用户明确要求，因为它会删除本地数据库。
-- Server 测试不能连接生产数据库，也不要把生产 URL 带进测试进程。
+- Server 测试只跑在 PostgreSQL 上，通过 `AGENT_SERVER_TEST_DB_URL` 指向一个名字含 `test` 的一次性数据库（本地用 `docker/docker-compose.local.yml` 的 postgres，建库和环境变量见[开发指南](docs/development.md)）；测试会清空该库的所有表，绝不能指向开发库或生产库，也不要把生产 URL 带进测试进程。SQLite 不再被测试，只保留给 v1 数据的导入来源。
 - Headless 检查通过，不等于真实安装、OAuth 回调或远程 Runtime 会话已经验证。汇报时要说明哪些验证没有做。
 - CI（`.github/workflows/ci.yml`）按改动路径运行 Connector、Server、Web、Desktop 的 headless 检查和 DSH 插件检查：`connector/` 的改动会连带触发 Server 与插件，`server/` 的改动会连带触发插件，`contracts/` 与工作流文件触发全部。CI 不跑 ruff（仓库里还有历史 lint 问题），也不覆盖 Android / iOS，这些要靠本地检查。
 

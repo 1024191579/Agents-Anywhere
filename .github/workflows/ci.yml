@@ -163,6 +163,23 @@ jobs:
     if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agents_anywhere_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The suite truncates every table before each test; the name must contain "test".
+      AGENT_SERVER_TEST_DB_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agents_anywhere_test
     steps:
       - name: Check out repository
         uses: actions/checkout@v6

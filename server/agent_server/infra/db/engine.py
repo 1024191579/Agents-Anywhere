@@ -90,6 +90,12 @@ def build_engine(
         # async pool; opening a new TCP connection per checkout is too costly
         # for production request latency.
         engine_kwargs["poolclass"] = NullPool
+    elif _env_flag("AGENT_SERVER_DB_NULL_POOL"):
+        # Test suites drive one app from many short-lived event loops
+        # (asyncio.run per assertion, TestClient portals); pooled asyncpg
+        # connections would be reused across loops and fail. NullPool opens a
+        # connection per checkout, which is cheap against a local Postgres.
+        engine_kwargs["poolclass"] = NullPool
     else:
         engine_kwargs.update(
             pool_size=_env_int(
@@ -117,6 +123,10 @@ def build_engine(
         _enable_sqlite_fk(engine)
         _disable_sqlite_terminate(engine)
     return resolved_backend, engine
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(name: str, default: int, *, minimum: int) -> int:

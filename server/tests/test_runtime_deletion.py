@@ -24,7 +24,7 @@ from agent_server.infra.db import schema as db
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    app = create_app(tmp_path / "runtime-deletion.sqlite3")
+    app = create_app()
     rpc = FakeRuntimeRpc(_v2_discovery())
     # Keep the production service and its cleanup dependencies wired by create_app.
     for method in ("is_online", "request", "request_bound", "is_connection_id_current"):

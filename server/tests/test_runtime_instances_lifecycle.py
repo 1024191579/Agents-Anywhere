@@ -106,7 +106,7 @@ def _make_client(
     tmp_path: Any,
     discovery: dict[str, Any],
 ) -> tuple[TestClient, FakeRuntimeRpc, str, dict[str, str]]:
-    app = create_app(tmp_path / "runtime-instances.sqlite3")
+    app = create_app()
     client = TestClient(app)
     headers = _auth_headers(client)
     created = client.post("/connectors", headers=headers, json={"name": "dev"})

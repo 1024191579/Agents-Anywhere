@@ -32,7 +32,7 @@ SESSION_CHILD_TABLES = (db.timeline_items, db.session_active_runs, db.session_sh
 
 @pytest.fixture
 def api(tmp_path):
-    with TestClient(create_app(tmp_path / "connector-deletion.sqlite3")) as client:
+    with TestClient(create_app()) as client:
         client.get("/auth/config")
         registered = client.post(
             "/auth/register",
