@@ -38,34 +38,18 @@ AGENT_SERVER_REDIS_URL=redis://127.0.0.1:6379/0 \
   uv run uvicorn agent_server.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-SQLite is not a supported Server runtime backend. It is retained only as a
-read-only source format for the one-time legacy v1 import tool and in isolated
-migration tests.
+The Server runs on PostgreSQL only. SQLite support and the one-time v1 SQLite
+import tool were removed in 2.1.0; a v1 deployment has to be imported with a
+2.0.x release first.
 
 The Server requires the database to be at its exact Alembic schema revision and
-does not mutate a production database during startup. `upgrade` fingerprints an
-unversioned v1 database, archives required legacy data, and applies every revision
-through the current schema (`v2_35`). Inspect the installed revision with:
+does not mutate a production database during startup. `upgrade` stamps an
+unversioned v2 database at the revision its columns match and applies every
+revision through the current schema. Inspect the installed revision with:
 
 ```bash
 uv run python -m agent_server.infra.db.migrations current --verbose
 ```
-
-Rehearse a v1 SQLite migration against a disposable, empty PostgreSQL database:
-
-```bash
-uv run python -m agent_server.infra.db.migrations rehearse-v1 \
-  --source-sqlite /path/to/v1.sqlite3 \
-  --target-url postgresql+asyncpg://agents:password@127.0.0.1:5432/agents_rehearsal \
-  --report migration-report.json
-```
-
-The source is opened read-only and copied with SQLite's backup API. Only the
-copy is upgraded. The PostgreSQL target must contain no product rows; the tool
-imports in one transaction and verifies every table by row count and SHA-256.
-Legacy-only rows and legacy JSON columns are retained in
-`legacy_import_archive`; their superseded source tables and columns are removed
-by `v2_3`.
 
 ### v2.24 rollout and downgrade boundary
 

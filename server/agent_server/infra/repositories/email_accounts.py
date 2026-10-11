@@ -16,7 +16,6 @@ from typing import Any
 
 from sqlalchemy import case, delete, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -172,7 +171,7 @@ class EmailAccountRepositoryMixin:
             )
             # Atomic database counters protect across workers, devices, and restarts.
             key = f"email:{hashlib.sha256(email.encode()).hexdigest()}"
-            upsert = pg_insert if conn.dialect.name == "postgresql" else sqlite_insert
+            upsert = pg_insert
             await conn.execute(
                 upsert(limits_t)
                 .values(key=key, window_start=now, count=0)
@@ -194,7 +193,7 @@ class EmailAccountRepositoryMixin:
                 raise EmailRateLimitError(
                     "too many verification emails; try again later"
                 )
-            upsert = pg_insert if conn.dialect.name == "postgresql" else sqlite_insert
+            upsert = pg_insert
             await conn.execute(
                 upsert(codes_t)
                 .values(

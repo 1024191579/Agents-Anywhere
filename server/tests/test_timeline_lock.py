@@ -1,7 +1,5 @@
-"""Verify that the per-session timeline lock actually serializes concurrent
-writers across both sqlite (asyncio.Lock) and postgres (pg_advisory_lock)
-backends. Runs against whatever AGENT_SERVER_DB_URL points at, so the CI/dev
-matrix covers both."""
+"""Verify that the per-session timeline lock (pg_advisory_lock) actually
+serializes concurrent writers against the PostgreSQL test database."""
 
 from __future__ import annotations
 

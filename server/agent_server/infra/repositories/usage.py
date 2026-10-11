@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from sqlalchemy import case, literal_column
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from agent_server.core.usage import (
     EVENT_CONNECTOR_ONLINE,
@@ -36,7 +35,7 @@ class UsageRepositoryMixin:
         if not rows:
             return 0
         async with self._engine.begin() as conn:
-            upsert = pg_insert if conn.dialect.name == "postgresql" else sqlite_insert
+            upsert = pg_insert
             result = await conn.execute(
                 upsert(usage_events_t).values(rows).on_conflict_do_nothing()
             )

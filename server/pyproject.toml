@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.16.0",
-    "aiosqlite>=0.20.0",
     "asyncpg>=0.30.0",
     "claude-agent-sdk",
     "fastapi>=0.136.1",

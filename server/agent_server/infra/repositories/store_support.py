@@ -50,7 +50,6 @@ from agent_server.infra.db import (
     usage_inventory_snapshots as usage_inventory_snapshots_t,
     users as users_t,
 )
-from agent_server.infra.db.engine import SQLITE_BACKEND
 from agent_server.infra.files import FileStorage, build_file_storage
 from agent_server.core.models import (
     ConnectorConfigBundle,
@@ -153,21 +152,13 @@ def _utc_now_plus(seconds: int) -> str:
     return (datetime.now(UTC) + timedelta(seconds=max(60, seconds))).isoformat().replace("+00:00", "Z")
 
 
-def _default_files_root(engine: AsyncEngine, path: str | Path | None) -> Path:
-    """Pick a sibling directory for uploaded file blobs.
+def _default_files_root(engine: AsyncEngine) -> Path:
+    """Pick a directory for uploaded file blobs.
 
-    For sqlite we anchor to the database file; for other backends we fall back
-    to a directory under the current working directory keyed by the database
-    name component.
+    Falls back to a directory under the current working directory keyed by the
+    database name; deployments configure the file backend explicitly.
     """
-    if path is not None:
-        db_path = Path(str(path))
-    else:
-        url = engine.url
-        if url.database and url.get_backend_name() == "sqlite":
-            db_path = Path(url.database)
-        else:
-            db_path = Path(f"agent-server-{url.database or 'db'}.files-root")
+    db_path = Path(f"agent-server-{engine.url.database or 'db'}.files-root")
     return db_path.with_suffix("").parent / f"{db_path.with_suffix('').name}.files"
 
 

@@ -6,7 +6,6 @@ import json
 
 import pytest
 from agent_server.infra.db.engine import build_engine, resolve_db_url
-from agent_server.infra.db.legacy_import import rehearse_v1_import
 from agent_server.infra.db.migrations import (
     CURRENT_SCHEMA_REVISION,
     CURRENT_SCHEMA_VERSION,
@@ -32,11 +31,6 @@ from sqlalchemy import BigInteger, create_engine, inspect, text
 from sqlalchemy.dialects.postgresql import asyncpg as postgresql_asyncpg
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
-
-
-def _sqlite_url(path) -> str:
-    """Only legacy v1 sources are SQLite files; everything else runs on Postgres."""
-    return f"sqlite+aiosqlite:///{path}"
 
 
 def _sync_url(url: str) -> str:
@@ -80,20 +74,14 @@ def test_runtime_database_url_is_required(monkeypatch) -> None:
         resolve_db_url()
 
 
-def test_runtime_sqlite_environment_is_rejected(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("AGENT_SERVER_DB_URL", _sqlite_url(tmp_path / "runtime.sqlite3"))
+def test_runtime_sqlite_environment_is_rejected(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_SERVER_DB_URL", "sqlite+aiosqlite:///runtime.sqlite3")
     monkeypatch.delenv("AGENT_SERVER_DB_BACKEND", raising=False)
 
     with pytest.raises(
         ValueError, match="SQLite runtime configuration is no longer supported"
     ):
         resolve_db_url()
-
-
-def test_explicit_sqlite_url_remains_available_for_legacy_tools(tmp_path) -> None:
-    url = _sqlite_url(tmp_path / "legacy.sqlite3")
-
-    assert resolve_db_url(url=url) == ("sqlite", url)
 
 
 def test_empty_database_upgrades_to_current_schema(fresh_database_url) -> None:
@@ -122,106 +110,6 @@ def test_empty_database_upgrades_to_current_schema(fresh_database_url) -> None:
         asyncio.run(require_current_database(async_engine))
     finally:
         asyncio.run(async_engine.dispose())
-
-
-def test_unversioned_v1_database_is_rehearsed_into_postgres(
-    tmp_path, fresh_database_url
-) -> None:
-    """The v1 SQLite layout is upgraded on a copy and imported into Postgres."""
-    source = tmp_path / "legacy.sqlite3"
-    _create_legacy_v1_database(source)
-
-    report = rehearse_v1_import(source_sqlite=source, target_url=fresh_database_url)
-    assert report.sourceKind == "v1"
-    assert report.targetRevision == CURRENT_SCHEMA_REVISION
-
-    url = fresh_database_url
-    engine = create_engine(_sync_url(url))
-    try:
-        inspector = inspect(engine)
-        assert not inspector.has_table("device_agent_settings")
-        assert not inspector.has_table("agent_modes")
-        assert not inspector.has_table("approvals")
-        assert inspector.has_table("device_runtimes")
-        session_columns = {
-            column["name"] for column in inspector.get_columns("sessions")
-        }
-        assert {"model_selection_id", "permission_selection_id"}.issubset(
-            session_columns
-        )
-        assert "runtime_settings_override" not in session_columns
-        connector_columns = {
-            column["name"] for column in inspector.get_columns("connectors")
-        }
-        assert {"presence_instance_id", "presence_connection_id"}.issubset(
-            connector_columns
-        )
-        assert "runtime_capabilities" not in connector_columns
-        with engine.connect() as connection:
-            session_status = connection.execute(
-                text("SELECT status FROM sessions WHERE id = 'sess_legacy'")
-            ).scalar_one()
-            runtime = (
-                connection.execute(
-                    text(
-                        "SELECT runtime.runtime_id, runtime_type.present, runtime.active, "
-                        "runtime.status, runtime_type.discovery_json, runtime.config_json "
-                        "FROM device_runtimes AS runtime "
-                        "JOIN connector_runtime_types AS runtime_type "
-                        "ON runtime_type.connector_id = runtime.connector_id "
-                        "AND runtime_type.runtime_type = runtime.runtime_type "
-                        "WHERE runtime.connector_id = 'conn_legacy' "
-                        "AND runtime.runtime_id = 'codex'"
-                    )
-                )
-                .mappings()
-                .one()
-            )
-            revision = connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one()
-        assert session_status == "blocked"
-        assert revision == CURRENT_SCHEMA_REVISION
-        assert runtime["runtime_id"] == "codex"
-        assert runtime["present"] == 1
-        assert runtime["active"] == 1
-        assert runtime["status"] == "unknown"
-        assert (
-            json.loads(runtime["discovery_json"])["selected"] == "/usr/local/bin/codex"
-        )
-        assert json.loads(runtime["config_json"]) == {
-            "model": "gpt-5.4",
-            "permissionMode": "ask",
-        }
-        with engine.connect() as connection:
-            selections = (
-                connection.execute(
-                    text(
-                        "SELECT model_selection_id, permission_selection_id "
-                        "FROM sessions WHERE id = 'sess_legacy'"
-                    )
-                )
-                .mappings()
-                .one()
-            )
-        assert selections == {
-            "model_selection_id": "gpt-5.4",
-            "permission_selection_id": "ask",
-        }
-        with engine.connect() as connection:
-            archived_sources = set(
-                connection.execute(
-                    text("SELECT source_table FROM legacy_import_archive")
-                ).scalars()
-            )
-        assert archived_sources == {
-            "agent_modes",
-            "connectors.runtime_capabilities",
-            "device_agent_settings",
-            "sessions.runtime_settings_override",
-        }
-    finally:
-        engine.dispose()
 
 
 def test_unversioned_v2_database_is_stamped_without_rebuilding(fresh_database_url) -> None:
@@ -2218,17 +2106,6 @@ def test_invalid_migration_lock_timeout_is_rejected(tmp_path, monkeypatch, fresh
         upgrade_database(db_url=fresh_database_url)
 
 
-def test_v1_rehearsal_requires_postgres_target(tmp_path) -> None:
-    source = tmp_path / "legacy.sqlite3"
-    _create_legacy_v1_database(source)
-
-    with pytest.raises(DatabaseMigrationError, match="must be a PostgreSQL"):
-        rehearse_v1_import(
-            source_sqlite=source,
-            target_url=_sqlite_url(tmp_path / "target.sqlite3"),
-        )
-
-
 def _seed_v2_13_runtime_storage(url) -> None:
     upgrade_database(db_url=url, revision="v2_13")
     engine = create_engine(_sync_url(url))
@@ -2336,138 +2213,6 @@ def _seed_v2_13_runtime_storage(url) -> None:
             )
     finally:
         engine.dispose()
-
-
-def _create_legacy_v1_database(path) -> None:
-    engine = create_engine(f"sqlite:///{path}")
-    metadata.create_all(engine)
-    with engine.begin() as connection:
-        # Current metadata contains tables and columns introduced after v1.
-        # Remove them before constructing the historical legacy fixture so
-        # their real Alembic revisions can create them during the upgrade.
-        connection.execute(text("DROP TABLE email_verification_codes"))
-        connection.execute(text("DROP TABLE email_verification_limits"))
-        connection.execute(text("DROP INDEX idx_users_email"))
-        connection.execute(text("ALTER TABLE users DROP COLUMN email"))
-        connection.execute(text("ALTER TABLE users DROP COLUMN email_verified_at"))
-        connection.execute(text("ALTER TABLE users DROP COLUMN display_name"))
-        connection.execute(text("DROP TABLE session_shares"))
-        connection.execute(text("ALTER TABLE sessions DROP COLUMN seq_allocated_high"))
-        connection.execute(
-            text(
-                "CREATE TABLE approvals ("
-                "id TEXT PRIMARY KEY, session_id TEXT NOT NULL, turn_id TEXT, status TEXT NOT NULL, "
-                "kind TEXT NOT NULL, target_item_id TEXT, title TEXT NOT NULL, description TEXT, "
-                "payload_json TEXT NOT NULL, choices_json TEXT NOT NULL, source_json TEXT NOT NULL, "
-                "updated_seq INTEGER NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT)"
-            )
-        )
-        connection.execute(text("DROP TABLE IF EXISTS notices"))
-        connection.execute(text("DROP TABLE connector_protocol_capabilities"))
-        connection.execute(text("DROP TABLE connector_runtime_catalogs"))
-        connection.execute(text("DROP TABLE device_runtimes"))
-        connection.execute(text("DROP TABLE connector_runtime_types"))
-        connection.execute(text("DROP TABLE IF EXISTS session_states"))
-        connection.execute(
-            text("ALTER TABLE connectors ADD COLUMN runtime_capabilities TEXT")
-        )
-        connection.execute(
-            text("ALTER TABLE sessions ADD COLUMN runtime_settings_override TEXT")
-        )
-        connection.execute(text("ALTER TABLE sessions DROP COLUMN model_selection_id"))
-        connection.execute(
-            text("ALTER TABLE sessions DROP COLUMN permission_selection_id")
-        )
-        connection.execute(text("ALTER TABLE sessions DROP COLUMN runtime_id"))
-        connection.execute(
-            text("ALTER TABLE session_active_runs DROP COLUMN runtime_id")
-        )
-        connection.execute(
-            text("ALTER TABLE connectors DROP COLUMN presence_instance_id")
-        )
-        connection.execute(
-            text("ALTER TABLE connectors DROP COLUMN presence_connection_id")
-        )
-        connection.execute(text("ALTER TABLE connectors DROP COLUMN connector_kind"))
-        connection.execute(
-            text(
-                "CREATE TABLE device_agent_settings ("
-                "connector_id TEXT NOT NULL, runtime TEXT NOT NULL, settings_json TEXT NOT NULL, "
-                "schema_version INTEGER NOT NULL, updated_at TEXT NOT NULL, "
-                "PRIMARY KEY (connector_id, runtime))"
-            )
-        )
-        connection.execute(
-            text("CREATE TABLE agent_modes (id TEXT PRIMARY KEY, label TEXT NOT NULL)")
-        )
-        connection.execute(
-            text("INSERT INTO agent_modes (id, label) VALUES ('mode_legacy', 'Legacy')")
-        )
-        connection.execute(
-            text(
-                "INSERT INTO users "
-                "(id, password_hash, role, disabled, created_at, updated_at) "
-                "VALUES ('user_legacy', 'hash', 'admin', 0, :now, :now)"
-            ),
-            {"now": "2026-07-20T00:00:00Z"},
-        )
-        connection.execute(
-            text(
-                "INSERT INTO connectors "
-                "(id, user_id, name, status, token_hash, token_prefix, revoked, created_at, updated_at, "
-                "runtime_capabilities) VALUES "
-                "('conn_legacy', 'user_legacy', 'Legacy', 'offline', 'hash', 'cxt_', 0, :now, :now, :state)"
-            ),
-            {
-                "now": "2026-07-20T00:00:00Z",
-                "state": json.dumps(
-                    {
-                        "version": 3,
-                        "lastDiscoveredAt": "2026-07-20T00:00:00Z",
-                        "observed": {
-                            "codex": {
-                                "report": {
-                                    "selected": "/usr/local/bin/codex",
-                                    "execution": "ok",
-                                },
-                                "observedAt": "2026-07-20T00:00:00Z",
-                            }
-                        },
-                        "desired": {
-                            "codex": {
-                                "enabled": True,
-                                "updatedAt": "2026-07-20T00:00:00Z",
-                            }
-                        },
-                    }
-                ),
-            },
-        )
-        connection.execute(
-            text(
-                "INSERT INTO sessions "
-                "(id, connector_id, runtime, origin, external_session_id, cwd, "
-                "status, takeover, pinned, "
-                "archived, last_read_seq, seq, updated_seq, created_at, updated_at, runtime_settings_override) "
-                "VALUES ('sess_legacy', 'conn_legacy', 'codex', 'connector_import', 'thread_legacy', "
-                "'/legacy', 'waiting_approval', 0, 0, 0, 0, 1, 1, :now, :now, :settings)"
-            ),
-            {
-                "now": "2026-07-20T00:00:00Z",
-                "settings": json.dumps({"model": "gpt-5.4", "permissionMode": "ask"}),
-            },
-        )
-        connection.execute(
-            text(
-                "INSERT INTO device_agent_settings "
-                "(connector_id, runtime, settings_json, schema_version, updated_at) "
-                "VALUES ('conn_legacy', 'codex', :settings, 3, :now)"
-            ),
-            {
-                "settings": json.dumps({"model": "gpt-5.4", "permissionMode": "ask"}),
-                "now": "2026-07-20T00:00:00Z",
-            },
-        )
 
 
 def test_v2_35_replaces_the_session_item_time_index(fresh_database_url) -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from runtime_fixtures import seed_runtime_inventory
@@ -512,7 +512,8 @@ def test_usage_maintenance_snapshots_inventory_and_prunes_old_events(tmp_path):
     asyncio.run(loop.run_once())
 
     store = client.app.state.store
-    today = date.today().isoformat()
+    # The maintenance loop keys snapshots by UTC date.
+    today = datetime.now(UTC).date().isoformat()
     assert asyncio.run(store.usage_inventory_snapshot_exists(today))
     snapshot = {
         (row.metric_key, row.dimension): row.value

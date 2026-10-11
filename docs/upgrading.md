@@ -28,26 +28,7 @@ Compose 的 `migrate-next` 会在新 Server 前执行迁移，但不会停止另
 
 ## 从 v1 SQLite 部署迁移
 
-v2 Server 运行时使用 PostgreSQL。SQLite 仅作为旧数据导入源和隔离测试工具，不是 v2 的生产数据库选项。
-
-1. 盘点旧版数据库、文件存储、账号、Connector 数据目录和 Runtime。旧版 ACP adapters 没有被重新引入当前 providers；依赖它们的机器应先确定迁移方案。
-2. 停止 v1 写入，备份 SQLite、文件数据和部署配置。首次运行 v2 Connector 前备份 `~/.agent-server` 或自己的配置目录。
-3. 先向独立、空的 PostgreSQL 目标演练导入：
-
-   ```bash
-   cd server
-   uv sync
-   uv run python -m agent_server.infra.db.migrations rehearse-v1 \
-     --source-sqlite /backup/agent-server.sqlite3 \
-     --target-url postgresql+asyncpg://agents:password@db/agents_rehearsal \
-     --report migration-report.json
-   ```
-
-   工具只读打开源文件，升级它的副本，导入并核对行数和 SHA-256。保留报告；文件 payload 需要另外复制和验证。正式导入同样需要空目标，并在停止旧写入后的最终备份上执行。
-4. 完成 v2 schema 升级、文件后端配置和 Redis 配置，再一起切换 Server、Web、Connector 与客户端。
-5. 检查旧账号的邮箱登录迁移。[邮箱账号与昵称](migrations/main-to-v2/email-accounts.md)说明旧用户名登录停止支持的边界，不能假定数据库升级后所有账号无需处理即可登录。
-
-旧版客户端不能仅通过补上 `/api/v2` 就获得兼容性：Session、Runtime 和实时恢复契约也发生了变化。
+2.1.0 起 Server 只支持 PostgreSQL，v1 SQLite 导入工具（`rehearse-v1`）已经移除。仍在 v1 的部署要先检出 2.0.x 的源码，按该版本的本文档完成导入，再升级到 2.1.0。
 
 ## Redis 与备份
 

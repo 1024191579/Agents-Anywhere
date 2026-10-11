@@ -106,14 +106,19 @@ async def _connector_presence_watchdog(app: FastAPI) -> None:
 
 
 def create_app(
-    db_path: str | Path | None = None,
     *,
-    migrate_database: bool | None = None,
+    migrate_database: bool = False,
     redis_url: str | None = None,
 ) -> FastAPI:
+    """Build the FastAPI app against ``AGENT_SERVER_DB_URL``.
+
+    Production deployments migrate the database before starting the Server
+    (see the Compose ``migrate-next`` step), so ``migrate_database`` is off by
+    default; the test suite migrates its own database once per session.
+    """
     process_settings = ProcessSettings.from_environment()
     resolved_redis_url = redis_url
-    if resolved_redis_url is None and db_path is None:
+    if resolved_redis_url is None:
         resolved_redis_url = os.environ.get("AGENT_SERVER_REDIS_URL")
     process_settings.validate_shared_state(redis_configured=bool(resolved_redis_url))
 
@@ -203,12 +208,9 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    should_migrate = (
-        db_path is not None if migrate_database is None else migrate_database
-    )
-    if should_migrate:
-        upgrade_database(sqlite_path=db_path)
-    app.state.store = Store(db_path)
+    if migrate_database:
+        upgrade_database()
+    app.state.store = Store()
     app.state.database_schema_version = "unknown"
     app.state.redis = RedisCoordinator(
         resolved_redis_url,
