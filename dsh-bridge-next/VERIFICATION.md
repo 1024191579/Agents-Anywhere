@@ -101,7 +101,7 @@ Windows 实机报告「本机连接被占用，无法启动」。`<DSH_HOME>/age
 
 合计 763 项测试。Server 测试有一条 Starlette/httpx TestClient 弃用提示，不影响本次结果。此记录是上述提交的验证快照；后续职责调整需要重新检查，不能沿用本表宣称新代码已经通过。
 
-插件事件与问答探针通过 ASGI 调用原有 Server，在各自的临时目录创建 SQLite 数据库；正常启动 Server 仍要求 PostgreSQL。测试请求一旦进入后端，不随客户端取消而被直接取消，测试关闭时等待后端请求完成。生产数据库和连接池没有因本轮测试修复而修改。
+插件事件与问答探针通过 ASGI 调用原有 Server，各自从 `AGENT_SERVER_TEST_DB_URL` 派生一个一次性 PostgreSQL 数据库（2.1.0 起 Server 不再支持 SQLite）；正常启动 Server 同样要求 PostgreSQL。测试请求一旦进入后端，不随客户端取消而被直接取消，测试关闭时等待后端请求完成。生产数据库和连接池没有因本轮测试修复而修改。
 
 ## Python Connector 职责调整
 
@@ -197,7 +197,7 @@ Connector 全量检查有 720 项通过、1 项旧参数签名约束失败；随
 既有失败改为跳过；上面的通过数字只代表所列验证范围。
 
 当前 CI 的完整命令见 [工作流](../.github/workflows/ci.yml)。本地
-迁移测试使用临时 SQLite，实际运行仍要求 PostgreSQL。重启现有 `local-up.sh`
+测试与实际运行都要求 PostgreSQL（`AGENT_SERVER_TEST_DB_URL`）。重启现有 `local-up.sh`
 会自动应用 `v2_33`，然后需完全重启 DSH 以加载新的插件 Python 进程。本轮
 未启动或重启真实服务，也未宣称已完成原环境的 409 实测验收。
 

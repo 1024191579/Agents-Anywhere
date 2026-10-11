@@ -70,6 +70,14 @@ uv run pytest -q
 ```
 
 ```bash
+# DSH 插件：集成测试会在进程内拉起 Connector 的 DSH 探针和 Server，需要上面同一个测试库变量
+cd dsh-bridge-next
+corepack yarn install
+AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://agents_anywhere:agents_anywhere_dev_password@127.0.0.1:55432/agents_anywhere_test \
+  corepack yarn check
+```
+
+```bash
 cd web-next
 yarn install
 yarn test
