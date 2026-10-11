@@ -106,6 +106,8 @@ device_runtimes = Table(
     Column("active", Integer, nullable=False, server_default="0"),
     Column("status", Text, nullable=False, server_default="stopped"),
     Column("error_json", Text),
+    # Optional step inside a non-error status (e.g. syncing while starting).
+    Column("phase_json", Text),
     Column("created_at", Text, nullable=False),
     Column("updated_at", Text, nullable=False),
     PrimaryKeyConstraint("connector_id", "runtime_id"),

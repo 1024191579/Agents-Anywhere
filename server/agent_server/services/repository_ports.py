@@ -485,6 +485,7 @@ class DeviceRuntimeRepository(
         runtime_id: str,
         status: str,
         error: dict[str, Any] | None = None,
+        phase: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
 

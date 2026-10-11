@@ -73,6 +73,8 @@ export type DeviceRuntimeView = {
   capabilities?: Record<string, boolean>;
   config: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
+  /** Step inside a non-error status, e.g. syncing while starting. Informational only. */
+  phase?: Record<string, unknown> | null;
   lastDiscoveredAt: string;
   createdAt?: string;
   updatedAt: string;

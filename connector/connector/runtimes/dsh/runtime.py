@@ -80,8 +80,8 @@ class DshRuntime(AgentRuntime):
 
     async def start(self) -> None:
         self._stopping = False
-        await self.host.runtime_health_update("starting", {
-            "code": "runtime_initializing", "message": "正在连接 DSH 并同步会话…", "retryable": True,
+        await self.host.runtime_health_update("starting", phase={
+            "code": "connecting", "message": "正在连接 DSH 并同步会话…", "retryable": True,
         })
         try:
             await self._ensure_client()
@@ -89,8 +89,8 @@ class DshRuntime(AgentRuntime):
             with suppress(Exception):
                 await self.host.runtime_health_update(
                     "starting",
-                    {
-                        "code": "runtime_unavailable",
+                    phase={
+                        "code": "waiting_bridge",
                         "message": "正在等待本地 DSH Bridge；请启动 DSH 并启用手机连接插件。",
                         "retryable": True,
                     },
@@ -444,8 +444,8 @@ class DshRuntime(AgentRuntime):
             self._client = client
             self._sync_mode = "events" if result.get("features", {}).get("syncMode") == "events" else "polling"
             if self._sync_mode == "events":
-                await self.host.runtime_health_update("starting", {
-                    "code": "runtime_initializing", "message": "正在同步 DSH 会话…", "retryable": True,
+                await self.host.runtime_health_update("starting", phase={
+                    "code": "syncing", "message": "正在同步 DSH 会话…", "retryable": True,
                 })
                 self._sync = SyncRelay(client, self.host)
                 self._sync.start()

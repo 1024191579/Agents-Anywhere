@@ -47,6 +47,8 @@ struct V2DeviceRuntime: Decodable, Identifiable, Hashable {
     let capabilities: [String: Bool]
     let config: JSONValue?
     let error: JSONValue?
+    /// Step inside a non-error status (e.g. syncing while starting). Informational only.
+    let phase: JSONValue?
     let lastDiscoveredAt: String
     let createdAt: String
     let updatedAt: String

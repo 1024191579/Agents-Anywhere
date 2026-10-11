@@ -1125,9 +1125,31 @@ def test_unversioned_runtime_schema_is_classified_by_actual_columns(
     )
 
 
-def test_current_schema_version_is_v2_41() -> None:
-    assert CURRENT_SCHEMA_REVISION == "v2_41"
-    assert CURRENT_SCHEMA_VERSION == "2.41"
+def test_current_schema_version_is_v2_42() -> None:
+    assert CURRENT_SCHEMA_REVISION == "v2_42"
+    assert CURRENT_SCHEMA_VERSION == "2.42"
+
+
+def test_v2_42_adds_the_runtime_phase_column(tmp_path) -> None:
+    path = tmp_path / "runtime-phase.sqlite3"
+    url = _sqlite_url(path)
+    upgrade_database(db_url=url, revision="v2_41")
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("device_runtimes")}
+        assert "phase_json" not in columns
+    finally:
+        engine.dispose()
+
+    upgrade_database(db_url=url)
+    upgrade_database(db_url=url)
+
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("device_runtimes")}
+        assert "phase_json" in columns
+    finally:
+        engine.dispose()
 
 
 def test_v2_41_drops_the_sidebar_order_table(tmp_path) -> None:
