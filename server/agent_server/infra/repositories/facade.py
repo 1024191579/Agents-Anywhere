@@ -21,6 +21,7 @@ from agent_server.infra.repositories.sessions import SessionRepositoryMixin
 from agent_server.infra.repositories.shares import SessionShareRepositoryMixin
 from agent_server.infra.repositories.store_support import *
 from agent_server.infra.repositories.timeline import TimelineRepositoryMixin
+from agent_server.infra.repositories.usage import UsageRepositoryMixin
 from agent_server.infra.repositories.users import UserRepositoryMixin
 
 _MAX_TRACKED_LOCKS = 4096
@@ -40,6 +41,7 @@ class Store(
     AttachmentRepositoryMixin,
     ActiveRunRepositoryMixin,
     TimelineRepositoryMixin,
+    UsageRepositoryMixin,
 ):
     def __init__(
         self,

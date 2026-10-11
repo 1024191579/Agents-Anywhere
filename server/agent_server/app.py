@@ -17,7 +17,7 @@ from redis.exceptions import RedisError
 
 from agent_server.api import (
     admin,
-    admin_dashboard,
+    admin_usage,
     agents,
     announcements,
     auth,
@@ -67,6 +67,8 @@ from agent_server.services.session_runtime_state_cache import SessionRuntimeStat
 from agent_server.services.setup_tokens import SetupTokenService
 from agent_server.services.shell_tasks import ShellTaskManager
 from agent_server.services.timeline_write_buffer import TimelineWriteBuffer
+from agent_server.services.usage_events import UsageRecorder
+from agent_server.services.usage_maintenance import UsageMaintenanceLoop
 from agent_server.services.workspace import WorkspaceServiceError
 
 CONNECTOR_PRESENCE_SWEEP_SECONDS = 5
@@ -119,6 +121,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         presence_task: asyncio.Task[None] | None = None
         deletion_task: asyncio.Task[None] | None = None
+        usage_task: asyncio.Task[None] | None = None
         try:
             logger.info(
                 "server concurrency pid={} workers={} event_workers={}",
@@ -134,13 +137,18 @@ def create_app(
             await app.state.terminal_stream_hub.start()
             await app.state.terminal_broker.start()
             await app.state.rpc.start()
+            await app.state.usage_recorder.start()
             presence_task = asyncio.create_task(_connector_presence_watchdog(app))
             deletion_task = asyncio.create_task(app.state.connector_deletion_recovery.run())
+            usage_task = asyncio.create_task(app.state.usage_maintenance.run())
             # Generate the bootstrap token early so operators see it in logs.
             if await app.state.store.count_users() == 0:
                 await SetupTokenService(app.state.setup_token, app.state.redis).snapshot()
             yield
         finally:
+            if usage_task is not None:
+                usage_task.cancel()
+                await asyncio.gather(usage_task, return_exceptions=True)
             if deletion_task is not None:
                 deletion_task.cancel()
                 await asyncio.gather(deletion_task, return_exceptions=True)
@@ -150,6 +158,11 @@ def create_app(
                     await presence_task
                 except asyncio.CancelledError:
                     pass
+            try:
+                # Flush buffered usage events while the database is still open.
+                await app.state.usage_recorder.close()
+            except Exception:  # noqa: BLE001 - shutdown must continue
+                logger.exception("failed to flush usage events on shutdown")
             try:
                 await app.state.rpc.close()
             finally:
@@ -170,7 +183,7 @@ def create_app(
                                 finally:
                                     await app.state.store.close()
 
-    app = FastAPI(title="Agent Server", version="2.0.3", lifespan=lifespan)
+    app = FastAPI(title="Agent Server", version="2.1.0", lifespan=lifespan)
     app.add_exception_handler(
         ConnectorServiceError,
         error_handlers.connector_service_error_handler,
@@ -265,6 +278,17 @@ def create_app(
         app.state.store, app.state.rpc, app.state.terminal_broker,
         app.state.timeline_write_buffer, app.state.session_runtime_state_cache, app.state.timeline_broker,
     )
+    app.state.usage_recorder = UsageRecorder(
+        app.state.store,
+        flush_interval_seconds=float(
+            os.environ.get("AGENT_SERVER_USAGE_FLUSH_INTERVAL_SECONDS", "1")
+        ),
+    )
+    app.state.usage_maintenance = UsageMaintenanceLoop(
+        app.state.store,
+        app.state.redis,
+        retention_days=int(os.environ.get("AGENT_SERVER_USAGE_RETENTION_DAYS", "400")),
+    )
     app.state.ws_tickets = ClientWsTicketManager(app.state.redis)
     app.state.setup_token = SetupToken()
     app.state.started_at_iso = utc_now()
@@ -336,7 +360,7 @@ def create_app(
     app.include_router(admin.router, prefix=API_V2_PREFIX)
     app.include_router(announcements.router, prefix=API_V2_PREFIX)
     app.include_router(announcements.admin_router, prefix=API_V2_PREFIX)
-    app.include_router(admin_dashboard.router, prefix=API_V2_PREFIX)
+    app.include_router(admin_usage.router, prefix=API_V2_PREFIX)
     app.include_router(dashboard_stream.router, prefix=API_V2_PREFIX)
     app.include_router(service.router, prefix=API_V2_PREFIX)
     app.include_router(shares.router, prefix=API_V2_PREFIX)

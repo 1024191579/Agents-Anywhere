@@ -35,9 +35,6 @@ from agent_server.infra.db import (
     connector_runtime_types as connector_runtime_types_t,
     connector_terminal_roots as connector_terminal_roots_t,
     connectors as connectors_t,
-    dashboard_daily_metrics as dashboard_daily_metrics_t,
-    dashboard_settings as dashboard_settings_t,
-    dashboard_user_daily_facts as dashboard_user_daily_facts_t,
     device_runtimes as device_runtimes_t,
     fs_preview_tokens as fs_preview_tokens_t,
     mobile_login_tokens as mobile_login_tokens_t,
@@ -45,11 +42,12 @@ from agent_server.infra.db import (
     oauth_authorization_codes as oauth_authorization_codes_t,
     oauth_clients as oauth_clients_t,
     pairing_codes as pairing_codes_t,
-    platform_user_activity as platform_user_activity_t,
     projects as projects_t,
     sessions as sessions_t,
     session_shares as session_shares_t,
     timeline_items as timeline_items_t,
+    usage_events as usage_events_t,
+    usage_inventory_snapshots as usage_inventory_snapshots_t,
     users as users_t,
 )
 from agent_server.infra.db.engine import SQLITE_BACKEND
