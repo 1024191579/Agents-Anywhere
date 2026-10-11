@@ -1125,9 +1125,54 @@ def test_unversioned_runtime_schema_is_classified_by_actual_columns(
     )
 
 
-def test_current_schema_version_is_v2_41() -> None:
-    assert CURRENT_SCHEMA_REVISION == "v2_41"
-    assert CURRENT_SCHEMA_VERSION == "2.41"
+def test_current_schema_version_is_v2_42() -> None:
+    assert CURRENT_SCHEMA_REVISION == "v2_42"
+    assert CURRENT_SCHEMA_VERSION == "2.42"
+
+
+def test_v2_42_replaces_dashboard_tables_with_usage_events(tmp_path) -> None:
+    path = tmp_path / "usage-events.sqlite3"
+    url = _sqlite_url(path)
+    upgrade_database(db_url=url, revision="v2_41")
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        inspector = inspect(engine)
+        assert inspector.has_table("dashboard_daily_metrics")
+        assert inspector.has_table("platform_user_activity")
+        assert not inspector.has_table("usage_events")
+    finally:
+        engine.dispose()
+
+    upgrade_database(db_url=url)
+    upgrade_database(db_url=url)
+
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        inspector = inspect(engine)
+        for table in (
+            "dashboard_daily_metrics",
+            "dashboard_user_daily_facts",
+            "dashboard_settings",
+            "platform_user_activity",
+        ):
+            assert not inspector.has_table(table)
+        event_columns = {column["name"] for column in inspector.get_columns("usage_events")}
+        assert {"hour_bucket", "event_type", "dedupe_key", "duration_ms"}.issubset(event_columns)
+        index_names = {index["name"] for index in inspector.get_indexes("usage_events")}
+        assert "idx_usage_events_type_hour" in index_names
+        assert inspector.has_table("usage_inventory_snapshots")
+    finally:
+        engine.dispose()
+
+    command.downgrade(_alembic_config(url), "v2_41")
+
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        inspector = inspect(engine)
+        assert inspector.has_table("dashboard_daily_metrics")
+        assert not inspector.has_table("usage_events")
+    finally:
+        engine.dispose()
 
 
 def test_v2_41_drops_the_sidebar_order_table(tmp_path) -> None:
