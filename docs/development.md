@@ -49,6 +49,9 @@ yarn dev
 ```bash
 cd server
 uv sync
+# tests/test_connector_pipeline.py 会导入 Connector 包，把它装进 Server 环境一次即可；
+# 临时跳过可加 --ignore=tests/test_connector_pipeline.py
+uv pip install --python .venv/bin/python ../connector
 uv run ruff check . --exclude .venv
 uv run pytest -q
 ```

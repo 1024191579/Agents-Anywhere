@@ -115,6 +115,7 @@ def build_engine(
     engine = create_async_engine(async_url, **engine_kwargs)
     if resolved_backend == SQLITE_BACKEND:
         _enable_sqlite_fk(engine)
+        _disable_sqlite_terminate(engine)
     return resolved_backend, engine
 
 
@@ -150,3 +151,24 @@ def _enable_sqlite_fk(engine: AsyncEngine) -> None:
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON")
         cursor.close()
+
+
+def _disable_sqlite_terminate(engine: AsyncEngine) -> None:
+    """Close stranded aiosqlite connections gracefully instead of terminating.
+
+    With aiosqlite >= 0.22.1 SQLAlchemy "terminates" a connection whose
+    connect event was interrupted (for example a task cancelled while it was
+    opening a connection; the pool does this regardless of ``has_terminate``):
+    it shields a background ``close()`` task and then force-stops the
+    aiosqlite worker thread. If the event loop shuts down before that thread
+    handled the close, the shielded task gets cancelled inside aiosqlite's
+    ``close()``, whose ``finally`` queues a second stop and awaits a future
+    the exited thread never resolves. The loop then never finishes
+    ``_cancel_all_tasks`` and the process hangs (seen as a stalled TestClient
+    teardown on busy CI runners). Plain ``close()`` has no shielded task and
+    no second stop, so the connection is simply closed on the live thread.
+    """
+
+    dialect = engine.dialect
+    dialect.has_terminate = False
+    dialect.do_terminate = dialect.do_close  # type: ignore[method-assign]
