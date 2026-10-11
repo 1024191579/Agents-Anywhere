@@ -184,7 +184,7 @@ jobs:
       - name: Test Server runtime, onboarding and attachment flows
         working-directory: server
         run: >-
-          uv run --frozen pytest
+          timeout 420 uv run --frozen pytest -o faulthandler_timeout=120
           tests/test_announcements.py
           tests/test_architecture_boundaries.py
           tests/test_auth.py
