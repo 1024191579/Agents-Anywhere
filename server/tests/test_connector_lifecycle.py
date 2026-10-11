@@ -414,7 +414,7 @@ def test_manual_title_survives_archive_restore_and_application_restart(tmp_path)
         assert response.status_code == 200, response.text
 
     # Reopen the existing database; make_client would replace it with a fixture.
-    restarted = ApiV2TestClient(create_app(tmp_path / "test.sqlite3"))
+    restarted = ApiV2TestClient(create_app())
     snapshot = asyncio.run(
         restarted.app.state.store.update_session_snapshot(
             session_id=session_id,

@@ -5,12 +5,11 @@ from typing import Any
 
 from sqlalchemy import delete, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from agent_server.core.models import TimelineItem
 from agent_server.infra.db import timeline_items
-from agent_server.infra.db.engine import SQLITE_BACKEND
+from agent_server.infra.db.engine import POSTGRES_BACKEND
 
 
 def _json_dumps(value: Any) -> str:
@@ -18,7 +17,7 @@ def _json_dumps(value: Any) -> str:
 
 
 class SqlTimelineStore:
-    def __init__(self, engine: AsyncEngine, *, backend: str = SQLITE_BACKEND) -> None:
+    def __init__(self, engine: AsyncEngine, *, backend: str = POSTGRES_BACKEND) -> None:
         self._engine = engine
         self._backend = backend
 
@@ -131,30 +130,17 @@ class SqlTimelineStore:
         if not items:
             return
         values = [self._row_values(item) for item in items]
-        if self._backend == SQLITE_BACKEND:
-            stmt = sqlite_insert(timeline_items)
-            update_cols = {
-                key: stmt.excluded[key]
-                for key in values[0]
-                if key not in ("session_id", "id")
-            }
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id", "id"],
-                set_=update_cols,
-                where=stmt.excluded.updated_seq >= timeline_items.c.updated_seq,
-            )
-        else:
-            stmt = pg_insert(timeline_items)
-            update_cols = {
-                key: stmt.excluded[key]
-                for key in values[0]
-                if key not in ("session_id", "id")
-            }
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id", "id"],
-                set_=update_cols,
-                where=stmt.excluded.updated_seq >= timeline_items.c.updated_seq,
-            )
+        stmt = pg_insert(timeline_items)
+        update_cols = {
+            key: stmt.excluded[key]
+            for key in values[0]
+            if key not in ("session_id", "id")
+        }
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["session_id", "id"],
+            set_=update_cols,
+            where=stmt.excluded.updated_seq >= timeline_items.c.updated_seq,
+        )
         await conn.execute(stmt, values)
 
     async def read_one(

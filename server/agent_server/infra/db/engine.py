@@ -1,94 +1,69 @@
+"""PostgreSQL engine factory.
+
+The Server runs on PostgreSQL only. SQLite support (and the v1 SQLite import
+that depended on it) was removed in 2.1.0.
+"""
+
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
-SQLITE_BACKEND = "sqlite"
 POSTGRES_BACKEND = "postgres"
 DEFAULT_POSTGRES_POOL_SIZE = 10
 DEFAULT_POSTGRES_MAX_OVERFLOW = 20
 DEFAULT_POSTGRES_POOL_TIMEOUT_SECONDS = 30.0
 DEFAULT_POSTGRES_POOL_RECYCLE_SECONDS = 1800
 
+_SQLITE_REJECTED = (
+    "SQLite runtime configuration is no longer supported; "
+    "set AGENT_SERVER_DB_URL to a postgresql+asyncpg URL"
+)
+
 
 def resolve_db_url(
     *,
     backend: str | None = None,
     url: str | None = None,
-    sqlite_path: str | Path | None = None,
 ) -> tuple[str, str]:
-    """Resolve a PostgreSQL runtime URL or an explicitly requested SQLite URL.
+    """Resolve the PostgreSQL URL from the argument or ``AGENT_SERVER_DB_URL``."""
 
-    SQLite is retained only for tests and the legacy import pipeline. Normal
-    runtime configuration must use AGENT_SERVER_DB_URL with PostgreSQL.
-    """
-    explicit_url = url is not None
-    url = url if explicit_url else os.environ.get("AGENT_SERVER_DB_URL")
+    url = url if url is not None else os.environ.get("AGENT_SERVER_DB_URL")
     backend = (
         backend if backend is not None else os.environ.get("AGENT_SERVER_DB_BACKEND")
     )
-
-    if url:
-        inferred_backend = _infer_backend_from_url(url)
-        if backend is not None and backend != inferred_backend:
-            raise ValueError(
-                f"database backend {backend!r} does not match "
-                f"URL backend {inferred_backend!r}"
-            )
-        if inferred_backend == SQLITE_BACKEND and not explicit_url:
-            raise ValueError(
-                "SQLite runtime configuration is no longer supported; "
-                "set AGENT_SERVER_DB_URL to a postgresql+asyncpg URL"
-            )
-        resolved_backend = backend or inferred_backend
-        return resolved_backend, url
-
-    if sqlite_path is not None:
-        if backend not in (None, SQLITE_BACKEND):
-            raise ValueError("sqlite_path cannot be used with a non-SQLite backend")
-        return SQLITE_BACKEND, f"sqlite+aiosqlite:///{sqlite_path}"
-
-    if backend == SQLITE_BACKEND or os.environ.get("AGENT_SERVER_DB"):
+    if not url:
+        if backend == "sqlite" or os.environ.get("AGENT_SERVER_DB"):
+            raise ValueError(_SQLITE_REJECTED)
         raise ValueError(
-            "SQLite runtime configuration is no longer supported; "
-            "set AGENT_SERVER_DB_URL to a postgresql+asyncpg URL"
+            "AGENT_SERVER_DB_URL is required "
+            "(e.g. postgresql+asyncpg://user:pass@host:5432/dbname)"
         )
-
-    raise ValueError(
-        "AGENT_SERVER_DB_URL is required "
-        "(e.g. postgresql+asyncpg://user:pass@host:5432/dbname)"
-    )
-
-
-def _infer_backend_from_url(url: str) -> str:
-    if url.startswith("postgresql"):
-        return POSTGRES_BACKEND
     if url.startswith("sqlite"):
-        return SQLITE_BACKEND
-    raise ValueError(f"unsupported AGENT_SERVER_DB_URL scheme: {url}")
+        raise ValueError(_SQLITE_REJECTED)
+    if not url.startswith("postgresql"):
+        raise ValueError(f"unsupported AGENT_SERVER_DB_URL scheme: {url}")
+    if backend not in (None, POSTGRES_BACKEND):
+        raise ValueError(
+            f"database backend {backend!r} does not match URL backend {POSTGRES_BACKEND!r}"
+        )
+    return POSTGRES_BACKEND, url
 
 
 def build_engine(
     *,
     backend: str | None = None,
     url: str | None = None,
-    sqlite_path: str | Path | None = None,
 ) -> tuple[str, AsyncEngine]:
-    resolved_backend, async_url = resolve_db_url(
-        backend=backend, url=url, sqlite_path=sqlite_path
-    )
+    resolved_backend, async_url = resolve_db_url(backend=backend, url=url)
     engine_kwargs: dict[str, object] = {"future": True}
-    if resolved_backend == SQLITE_BACKEND:
-        # Async DB-API connections are bound to the event loop that opened
-        # them. FastAPI/Starlette's TestClient uses anyio to run requests in
-        # fresh loop scopes, so SQLite keeps NullPool to avoid reusing
-        # connections across loops. Postgres should use SQLAlchemy's default
-        # async pool; opening a new TCP connection per checkout is too costly
-        # for production request latency.
+    if _env_flag("AGENT_SERVER_DB_NULL_POOL"):
+        # Test suites drive one app from many short-lived event loops
+        # (asyncio.run per assertion, TestClient portals); pooled asyncpg
+        # connections would be reused across loops and fail. NullPool opens a
+        # connection per checkout, which is cheap against a local Postgres.
         engine_kwargs["poolclass"] = NullPool
     else:
         engine_kwargs.update(
@@ -112,10 +87,11 @@ def build_engine(
             ),
             pool_pre_ping=True,
         )
-    engine = create_async_engine(async_url, **engine_kwargs)
-    if resolved_backend == SQLITE_BACKEND:
-        _enable_sqlite_fk(engine)
-    return resolved_backend, engine
+    return resolved_backend, create_async_engine(async_url, **engine_kwargs)
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(name: str, default: int, *, minimum: int) -> int:
@@ -142,11 +118,3 @@ def _env_float(name: str, default: float, *, minimum: float) -> float:
     if value < minimum:
         raise ValueError(f"{name} must be at least {minimum}")
     return value
-
-
-def _enable_sqlite_fk(engine: AsyncEngine) -> None:
-    @event.listens_for(engine.sync_engine, "connect")
-    def _on_connect(dbapi_conn, _record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON")
-        cursor.close()

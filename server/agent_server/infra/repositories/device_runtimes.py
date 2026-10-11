@@ -275,6 +275,7 @@ class DeviceRuntimeRepositoryMixin:
                         active=1 if active else 0,
                         status="stopped",
                         error_json=None,
+                        phase_json=None,
                         created_at=now,
                         updated_at=now,
                     )
@@ -406,6 +407,7 @@ class DeviceRuntimeRepositoryMixin:
             runtime_id,
             config_json=_json_dumps(config),
             error_json=None,
+            phase_json=None,
         )
 
     async def set_device_runtime_active(
@@ -427,12 +429,14 @@ class DeviceRuntimeRepositoryMixin:
         status: str,
         *,
         error: dict[str, Any] | None = None,
+        phase: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return await self._update_device_runtime(
             connector_id,
             runtime_id,
             status=status,
             error_json=_json_dumps(error) if error is not None else None,
+            phase_json=_json_dumps(phase) if phase is not None else None,
         )
 
     async def delete_runtime_session_files(self, session_ids: list[str]) -> None:
@@ -464,6 +468,7 @@ class DeviceRuntimeRepositoryMixin:
                     active=0,
                     status="stopped",
                     error_json=None,
+                    phase_json=None,
                     updated_at=utc_now(),
                 )
             )
@@ -604,6 +609,9 @@ def _runtime_row(row: Any) -> dict[str, Any]:
     configured = row["config_json"] is not None
     status = str(row["status"])
     error = _json_loads(row["error_json"])
+    phase = _json_loads(row["phase_json"]) if "phase_json" in row else None
+    if not isinstance(phase, dict):
+        phase = None
     return {
         "connectorId": str(row["connector_id"]),
         "runtimeId": str(row["runtime_id"]),
@@ -619,6 +627,8 @@ def _runtime_row(row: Any) -> dict[str, Any]:
         "reason": (
             error.get("message")
             if isinstance(error, dict) and isinstance(error.get("message"), str)
+            else phase.get("message")
+            if phase is not None and isinstance(phase.get("message"), str)
             else None
         ),
         "configured": configured,
@@ -632,6 +642,7 @@ def _runtime_row(row: Any) -> dict[str, Any]:
         "capabilities": _json_loads(row["type_capabilities_json"]) or {},
         "config": _json_loads(row["config_json"]),
         "error": error,
+        "phase": phase,
         "lastDiscoveredAt": str(row["type_last_discovered_at"]),
         "createdAt": str(row["created_at"]),
         "updatedAt": str(row["updated_at"]),

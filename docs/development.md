@@ -49,7 +49,16 @@ yarn dev
 ```bash
 cd server
 uv sync
+# tests/test_connector_pipeline.py 会导入 Connector 包，把它装进 Server 环境一次即可；
+# 临时跳过可加 --ignore=tests/test_connector_pipeline.py
+uv pip install --python .venv/bin/python ../connector
 uv run ruff check . --exclude .venv
+# 测试跑在真实 PostgreSQL 上：用本地 compose 起一个库，并单独建一个名字含 test 的数据库。
+# 测试会在每个用例前清空该库的所有表，所以绝不能指向开发库或生产库。
+docker compose -f ../docker/docker-compose.local.yml up -d postgres
+docker compose -f ../docker/docker-compose.local.yml exec postgres \
+  psql -U agents_anywhere -c 'CREATE DATABASE agents_anywhere_test'
+export AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://agents_anywhere:agents_anywhere_dev_password@127.0.0.1:55432/agents_anywhere_test
 uv run pytest -q
 ```
 
@@ -58,6 +67,14 @@ cd connector
 uv sync
 uv run ruff check connector tests
 uv run pytest -q
+```
+
+```bash
+# DSH 插件：集成测试会在进程内拉起 Connector 的 DSH 探针和 Server，需要上面同一个测试库变量
+cd dsh-bridge-next
+corepack yarn install
+AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://agents_anywhere:agents_anywhere_dev_password@127.0.0.1:55432/agents_anywhere_test \
+  corepack yarn check
 ```
 
 ```bash
