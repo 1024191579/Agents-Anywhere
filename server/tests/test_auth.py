@@ -13,7 +13,6 @@ import pytest
 from conftest import ApiV2TestClient as TestClient
 from conftest import make_test_client
 
-from agent_server.app import create_app
 from agent_server.core.auth import (
     create_signed_token,
     hash_password,
@@ -1066,6 +1065,9 @@ def test_mobile_login_qr_requires_phone_request_and_web_confirm(tmp_path, monkey
 )
 def test_mobile_login_refresh_rejects_invalid_claims(tmp_path, kind, claims, expires_in):
     client = make_client(tmp_path)
+    admin_token(client)
+    if claims.get("sub") == "user":
+        claims = {**claims, "sub": user_id(client, "user1")}
     token = create_signed_token(kind, claims, expires_in)
     response = client.post("/auth/mobile-login/refresh", json={"refreshToken": token})
     assert response.status_code == 401

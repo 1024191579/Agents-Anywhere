@@ -166,6 +166,7 @@ fun AgentsAnywhereApp(
         TerminalController(
             terminalApi = TerminalApi(apiClient),
             sessionStore = sessionStore,
+            authApi = AuthApi(apiClient),
         )
     }
     val remoteTerminalPool = remember(terminalController) {
