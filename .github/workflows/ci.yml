@@ -175,11 +175,12 @@ jobs:
           cache-dependency-glob: |
             connector/pyproject.toml
             server/pyproject.toml
-      - name: Install Server and Connector dependencies
-        # tests/test_connector_pipeline.py drives a real Connector host against the Server.
+      - name: Install Server dependencies and the Connector package
+        # tests/test_connector_pipeline.py imports the Connector package, so it
+        # and its dependencies have to live in the Server environment.
         run: |
-          uv sync --project connector
           uv sync --project server
+          uv pip install --python server/.venv/bin/python ./connector
       - name: Test Server
         working-directory: server
         run: timeout 1200 uv run --frozen pytest -q -o faulthandler_timeout=120

@@ -34,7 +34,7 @@ Agents Anywhere 是一个跨设备的 Agent 工作台。工作设备上的 **Con
 - 仓库根目录**没有**统一的构建命令，每个子项目单独安装依赖、单独检查。
 - **不提交 lockfile**（`yarn.lock`、`uv.lock`、`package-lock.json` 等已被 `.gitignore` 忽略），不要把它们加回来。
 - 只运行和修改有关的 headless 检查：
-  - Server：`cd server && uv run ruff check . --exclude .venv && uv run pytest -q`
+  - Server：`cd server && uv run ruff check . --exclude .venv && uv run pytest -q`（`tests/test_connector_pipeline.py` 会导入 Connector 包，先执行一次 `uv pip install --python .venv/bin/python ../connector`；临时跳过用 `--ignore=tests/test_connector_pipeline.py`）
   - Connector：`cd connector && uv run ruff check connector tests && uv run pytest -q`
   - Web：`cd web-next && yarn test && yarn typecheck && yarn protocol:check`
   - Desktop：`cd desktop-workbench && yarn test:main && yarn renderer:typecheck`
