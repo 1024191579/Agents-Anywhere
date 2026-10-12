@@ -237,8 +237,8 @@ class DeviceRuntimeRepositoryMixin:
         now = utc_now()
         try:
             async with self._engine.begin() as conn:
-                # This no-op write serializes policy checks on SQLite and locks
-                # the type row on PostgreSQL before counting existing instances.
+                # This no-op write locks the type row so concurrent policy
+                # checks serialize before counting existing instances.
                 locked = await conn.execute(
                     update(runtime_types_t)
                     .where(

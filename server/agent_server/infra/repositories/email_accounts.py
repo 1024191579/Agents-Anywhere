@@ -305,7 +305,8 @@ class EmailAccountRepositoryMixin:
                 .values(failed_attempts=codes_t.c.failed_attempts + 1)
             )
             return False
-        # The conditional write also gives SQLite atomic one-use consumption.
+        # The conditional write guarantees one-use consumption on top of the
+        # row lock.
         consumed = await conn.execute(
             update(codes_t)
             .where(

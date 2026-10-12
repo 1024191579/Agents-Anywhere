@@ -107,13 +107,14 @@ HTTP 批次在临时网络故障、408、429、5xx 或发送任务取消时保�
 
 原始删除回放产生 500 个异常堆栈，格式化日志共 4,585,555 字节。修复后，500 条旧消息执行 0 条 SQL、输出 0 个异常堆栈，待处理计数回到零。实际删除和取消操作用了 8 条 SQL、16.372 毫秒，其中包含删除 200 个合成会话。
 
-原始结果见 [SQLite 回放结果](connector-lifecycle-result.json)。从仓库根目录、安装开发依赖后运行：
+原始结果见 [SQLite 回放结果](connector-lifecycle-result.json)，是 Server 还支持 SQLite 时的测量；脚本现在只跑在 PostgreSQL 上。从仓库根目录、安装开发依赖后运行：
 
 ```sh
-uv run --project server python server/scripts/benchmark_connector_lifecycle.py --output /tmp/connector-lifecycle.json
+AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://agents_anywhere:agents_anywhere_dev_password@127.0.0.1:55432/agents_anywhere_test \
+  uv run --project server python server/scripts/benchmark_connector_lifecycle.py --output /tmp/connector-lifecycle.json
 ```
 
-默认模式清除应用数据库环境变量覆盖，使用自己的临时 SQLite 数据库。
+默认模式清除其他 `AGENT_SERVER_*` 环境变量，使用 `AGENT_SERVER_TEST_DB_URL` 指向的一次性测试库，和测试套件一样先清空所有表、使用 NullPool。
 
 ## 五、PostgreSQL 验证结果
 
@@ -147,7 +148,7 @@ PostgreSQL 专项 21 个用例通过，覆盖凭证撤销、清理失败重试�
 
 行锁用例通过 `pg_stat_activity` 确认快速 UPDATE 正在等待锁，再由另一个事务分别提交状态变化或删除。等待结束后，快速路径返回未匹配，不覆盖新状态，也不重建已删除的行。
 
-复现使用两个可丢弃数据库：回归脚本在用例间清空测试表；性能脚本要求应用表为空。脚本只接受回环地址和指定测试库名称前缀。
+复现使用两个可丢弃数据库：回归用例由测试套件在用例间清空测试表；性能脚本要求 `--postgres-url` 指向的应用表为空，且只接受回环地址和 `aa_session_*` 库名。
 
 ```sh
 docker run -d --rm --name aa-session-check-pg -p 127.0.0.1:55439:5432 \
@@ -159,12 +160,14 @@ docker exec aa-session-check-pg createdb -U aa_test aa_lifecycle_test
 uv run --project server python server/scripts/benchmark_connector_lifecycle.py \
   --postgres-url postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_session_perf \
   --output /tmp/connector-lifecycle-postgres.json
-uv run --project server python server/scripts/check_postgres_lifecycle.py \
-  --postgres-url postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_lifecycle_test
+AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_lifecycle_test \
+  uv run --project server pytest server/tests/test_connector_lifecycle.py server/tests/test_announcements.py \
+  server/tests/test_shared_setup_tokens.py server/tests/test_connector_deletion.py \
+  server/tests/test_session_inventory.py server/tests/test_session_source_postgres.py
 docker stop aa-session-check-pg
 ```
 
-等待 `pg_isready` 报告可接收连接后再创建第二个数据库。回归脚本使用 `NullPool` 适配同步测试工具的多个事件循环；性能回放使用正常连接池。本轮临时容器已回收，结果保留在仓库。
+等待 `pg_isready` 报告可接收连接后再创建第二个数据库。测试套件使用 `NullPool` 适配同步测试工具的多个事件循环；`--postgres-url` 回放使用正常连接池。本轮临时容器已回收，结果保留在仓库。
 
 ## 六、已完成的验证范围
 
