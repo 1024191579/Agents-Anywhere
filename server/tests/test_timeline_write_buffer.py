@@ -1118,8 +1118,8 @@ async def test_stale_durable_writer_is_ordered_before_replacement_lease(
 ) -> None:
     """Order the replacement lease behind the stale writer's commit.
 
-    The paused store hooks stand in for the ``sessions`` row lock that
-    serializes the two writers on PostgreSQL.
+    The paused store hooks make the interleaving deterministic; in production
+    the ``sessions`` row lock provides the same ordering.
     """
 
     first_store = Store()

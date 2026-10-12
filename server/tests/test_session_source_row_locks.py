@@ -1,4 +1,4 @@
-"""Real PostgreSQL row-lock interleavings."""
+"""Row-lock interleavings between the source fast path and concurrent writers."""
 
 from __future__ import annotations
 

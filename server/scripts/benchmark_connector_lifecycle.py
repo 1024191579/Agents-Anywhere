@@ -461,7 +461,7 @@ async def audit(app, connector_id, session_id, *, pooled=False):
     return results
 
 
-async def prepare_postgres(source_store, url):
+async def prepare_replay_app(source_store, url):
     """Copy only the synthetic seed into a verified empty disposable database."""
     os.environ["AGENT_SERVER_DB_URL"] = url
     # conftest asked for NullPool on the shared test database; the pooled
@@ -500,11 +500,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path)
     parser.add_argument(
-        "--postgres-url", help="Empty local test database named aa_session_* only"
+        "--replay-db-url",
+        help=(
+            "Empty loopback database named aa_session_*; replays with the "
+            "production pool and captures plans"
+        ),
     )
     args = parser.parse_args()
-    if args.postgres_url:
-        parsed = urlsplit(args.postgres_url)
+    if args.replay_db_url:
+        parsed = urlsplit(args.replay_db_url)
         if (
             parsed.scheme != "postgresql+asyncpg"
             or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
@@ -513,16 +517,16 @@ def main():
             or parsed.fragment
         ):
             parser.error(
-                "--postgres-url must be a loopback postgresql+asyncpg URL with database aa_session_*"
+                "--replay-db-url must be a loopback postgresql+asyncpg URL with database aa_session_*"
             )
     reset_shared_database()
     client = make_test_client()
     connector_id, _, session_id, _ = create_connector_and_session(client)
-    if args.postgres_url:
-        upgrade_database(db_url=args.postgres_url)
+    if args.replay_db_url:
+        upgrade_database(db_url=args.replay_db_url)
 
         async def run_pooled():
-            app = await prepare_postgres(client.app.state.store, args.postgres_url)
+            app = await prepare_replay_app(client.app.state.store, args.replay_db_url)
             return await audit(app, connector_id, session_id, pooled=True)
 
         result = asyncio.run(run_pooled())

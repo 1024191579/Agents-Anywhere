@@ -192,18 +192,15 @@ def _set_project_foreign_key(ondelete: str) -> None:
     current = (foreign_key or {}).get("options", {}).get("ondelete")
     if foreign_key is None or str(current).upper() == ondelete:
         return
-    with op.batch_alter_table("sessions") as batch_op:
-        batch_op.drop_constraint(
-            foreign_key.get("name") or _PROJECT_FOREIGN_KEY,
-            type_="foreignkey",
-        )
-        batch_op.create_foreign_key(
-            _PROJECT_FOREIGN_KEY,
-            "projects",
-            ["project_id"],
-            ["id"],
-            ondelete=ondelete,
-        )
+    op.drop_constraint(foreign_key["name"], "sessions", type_="foreignkey")
+    op.create_foreign_key(
+        _PROJECT_FOREIGN_KEY,
+        "sessions",
+        "projects",
+        ["project_id"],
+        ["id"],
+        ondelete=ondelete,
+    )
 
 
 def upgrade() -> None:

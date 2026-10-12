@@ -1,6 +1,6 @@
 # 连接端生命周期修复与会话性能验证报告
 
-本轮修复位于 `codex/session-pipeline-performance` 分支，生命周期问题的对照基线为 `06f1f241`，修复代码和 PostgreSQL 验证材料截至 `20d2c808`。代码已提交并推送，尚未部署线上。前一阶段的连接端、服务端、进程池和网页优化见[会话处理全链路性能报告](session-pipeline.md)。
+本轮修复位于 `codex/session-pipeline-performance` 分支，生命周期问题的对照基线为 `06f1f241`，修复代码和验证材料截至 `20d2c808`。代码已提交并推送，尚未部署线上。前一阶段的连接端、服务端、进程池和网页优化见[会话处理全链路性能报告](session-pipeline.md)。
 
 本轮已修复删除、撤销凭证、运行配置清理和断线恢复中的旧任务问题，并减少未变化会话的重复处理。**这些结果不能证明线上 CPU 问题已经全部解决：空标题会话的逐条补查、工作台全量快照和逐会话能力发布仍有成本。**
 
@@ -93,11 +93,11 @@ HTTP 批次在临时网络故障、408、429、5xx 或发送任务取消时保�
 
 快速路径保留较新的时间戳、旧观察不应清除的扫描标记、版本计数，以及用户主动恢复归档会话的选择。**同版本正文校验保持不变，空标题补查也没有在这条优化中消除。**
 
-## 四、PostgreSQL 回放结果
+## 四、本地回放结果
 
 回放使用真实的数据访问、消息接入、队列和删除代码，在独立 PostgreSQL 17.10 容器上进行，采用本机回环连接、临时存储和正常 SQLAlchemy 连接池，不启动应用监听端口或真实运行实例。数据为 200 个来源状态、原因和观察来源均未变化的导入会话，时间取三次预热后运行的中位数。SQL 计数不含每次请求或批次入口的鉴权与接入检查。对照组只关闭新增的无变化快速路径，使同一份服务代码走原有完整版本保护流程，减少其他版本差异的影响。
 
-实际 SQL 和执行计划见 [PostgreSQL 回放结果](connector-lifecycle-postgres-result.json)。
+实际 SQL 和执行计划见[回放结果](connector-lifecycle-result.json)。
 
 | 处理路径，200 个未变化会话 | SQL 数量 | 完整会话对象构造 | 事件循环 CPU 时间 | 总耗时 |
 | --- | ---: | ---: | ---: | ---: |
@@ -134,7 +134,7 @@ PostgreSQL 专项 21 个用例通过，覆盖凭证撤销、清理失败重试�
 
 行锁用例通过 `pg_stat_activity` 确认快速 UPDATE 正在等待锁，再由另一个事务分别提交状态变化或删除。等待结束后，快速路径返回未匹配，不覆盖新状态，也不重建已删除的行。
 
-复现使用两个可丢弃数据库：回归用例由测试套件在用例间清空测试表；性能脚本要求 `--postgres-url` 指向的应用表为空，且只接受回环地址和 `aa_session_*` 库名。
+复现使用两个可丢弃数据库：回归用例由测试套件在用例间清空测试表；性能脚本要求 `--replay-db-url` 指向的应用表为空，且只接受回环地址和 `aa_session_*` 库名。
 
 ```sh
 docker run -d --rm --name aa-session-check-pg -p 127.0.0.1:55439:5432 \
@@ -143,17 +143,18 @@ docker run -d --rm --name aa-session-check-pg -p 127.0.0.1:55439:5432 \
   -e POSTGRES_DB=aa_session_perf postgres:17-alpine
 docker exec aa-session-check-pg pg_isready -U aa_test -d aa_session_perf
 docker exec aa-session-check-pg createdb -U aa_test aa_lifecycle_test
-uv run --project server python server/scripts/benchmark_connector_lifecycle.py \
-  --postgres-url postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_session_perf \
-  --output /tmp/connector-lifecycle-postgres.json
+AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_lifecycle_test \
+  uv run --project server python server/scripts/benchmark_connector_lifecycle.py \
+  --replay-db-url postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_session_perf \
+  --output /tmp/connector-lifecycle-replay.json
 AGENT_SERVER_TEST_DB_URL=postgresql+asyncpg://aa_test:aa_disposable_test@127.0.0.1:55439/aa_lifecycle_test \
   uv run --project server pytest server/tests/test_connector_lifecycle.py server/tests/test_announcements.py \
   server/tests/test_shared_setup_tokens.py server/tests/test_connector_deletion.py \
-  server/tests/test_session_inventory.py server/tests/test_session_source_postgres.py
+  server/tests/test_session_inventory.py server/tests/test_session_source_row_locks.py
 docker stop aa-session-check-pg
 ```
 
-等待 `pg_isready` 报告可接收连接后再创建第二个数据库。测试套件使用 `NullPool` 适配同步测试工具的多个事件循环；`--postgres-url` 回放使用正常连接池。本轮临时容器已回收，结果保留在仓库。
+等待 `pg_isready` 报告可接收连接后再创建第二个数据库。测试套件使用 `NullPool` 适配同步测试工具的多个事件循环；`--replay-db-url` 回放使用正常连接池。本轮临时容器已回收，结果保留在仓库。
 
 ## 五、已完成的验证范围
 

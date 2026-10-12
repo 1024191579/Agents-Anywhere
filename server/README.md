@@ -15,7 +15,7 @@ agent_server/
   app.py        FastAPI app factory and local uvicorn entry helper
 tests/          Backend tests
 pyproject.toml  Server dependencies
-run.sh          Local helper for PostgreSQL-backed development
+run.sh          Local helper that migrates and starts the Server
 ```
 
 ## Run
@@ -26,8 +26,8 @@ Install dependencies:
 uv sync
 ```
 
-PostgreSQL is the v2 runtime database. Start the backend from this directory
-after provisioning PostgreSQL and Redis:
+The Server needs PostgreSQL and Redis. Start it from this directory after
+provisioning both:
 
 ```bash
 AGENT_SERVER_DB_URL=postgresql+asyncpg://agents:password@127.0.0.1:5432/agents_anywhere \
