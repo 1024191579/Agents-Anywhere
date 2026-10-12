@@ -237,17 +237,20 @@ class DeviceRuntimeRepositoryMixin:
         now = utc_now()
         try:
             async with self._engine.begin() as conn:
-                # This no-op write serializes policy checks on SQLite and locks
-                # the type row on PostgreSQL before counting existing instances.
-                locked = await conn.execute(
-                    update(runtime_types_t)
-                    .where(
-                        runtime_types_t.c.connector_id == connector_id,
-                        runtime_types_t.c.runtime_type == runtime_type,
+                # Lock the type row so concurrent creates serialize before
+                # counting existing instances. NO KEY leaves foreign-key checks
+                # from other writers unblocked.
+                locked = (
+                    await conn.execute(
+                        select(runtime_types_t.c.runtime_type)
+                        .where(
+                            runtime_types_t.c.connector_id == connector_id,
+                            runtime_types_t.c.runtime_type == runtime_type,
+                        )
+                        .with_for_update(key_share=True)
                     )
-                    .values(updated_at=runtime_types_t.c.updated_at)
-                )
-                if locked.rowcount == 0:
+                ).first()
+                if locked is None:
                     raise KeyError(runtime_type)
 
                 type_row = (

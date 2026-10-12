@@ -67,21 +67,14 @@ def test_v2_24_protocol_limit_uses_postgresql_bigint_bind() -> None:
 
 def test_runtime_database_url_is_required(monkeypatch) -> None:
     monkeypatch.delenv("AGENT_SERVER_DB_URL", raising=False)
-    monkeypatch.delenv("AGENT_SERVER_DB_BACKEND", raising=False)
-    monkeypatch.delenv("AGENT_SERVER_DB", raising=False)
 
     with pytest.raises(ValueError, match="AGENT_SERVER_DB_URL is required"):
         resolve_db_url()
 
 
-def test_runtime_sqlite_environment_is_rejected(monkeypatch) -> None:
-    monkeypatch.setenv("AGENT_SERVER_DB_URL", "sqlite+aiosqlite:///runtime.sqlite3")
-    monkeypatch.delenv("AGENT_SERVER_DB_BACKEND", raising=False)
-
-    with pytest.raises(
-        ValueError, match="SQLite runtime configuration is no longer supported"
-    ):
-        resolve_db_url()
+def test_non_postgresql_database_url_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unsupported AGENT_SERVER_DB_URL scheme"):
+        resolve_db_url("mysql+aiomysql://agents:secret@127.0.0.1:3306/agents")
 
 
 def test_empty_database_upgrades_to_current_schema(fresh_database_url) -> None:
@@ -248,7 +241,6 @@ def test_v2_0_database_upgrades_through_current_revision(fresh_database_url) -> 
 @pytest.mark.parametrize(
     ("source_revision", "target_revision"),
     [
-        ("v1_legacy", "v2_0"),
         ("v2_0", "v2_1"),
         ("v2_1", "v2_2"),
         ("v2_2", "v2_3"),
@@ -2137,11 +2129,10 @@ def test_postgres_pool_settings_are_configurable(monkeypatch) -> None:
     monkeypatch.setenv("AGENT_SERVER_DB_POOL_TIMEOUT", "4.5")
     monkeypatch.setenv("AGENT_SERVER_DB_POOL_RECYCLE", "600")
 
-    backend, engine = build_engine(
+    engine = build_engine(
         url="postgresql+asyncpg://agents:secret@127.0.0.1:5432/agents"
     )
     try:
-        assert backend == "postgres"
         assert engine.pool.size() == 7
         assert engine.pool._max_overflow == 3
         assert engine.pool._timeout == 4.5
