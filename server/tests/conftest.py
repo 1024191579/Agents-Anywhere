@@ -57,7 +57,6 @@ def _test_database_url() -> str:
 TEST_DATABASE_URL = _test_database_url()
 # Application code resolves the database through AGENT_SERVER_DB_URL.
 os.environ["AGENT_SERVER_DB_URL"] = TEST_DATABASE_URL
-os.environ.pop("AGENT_SERVER_DB_BACKEND", None)
 
 
 def make_test_client() -> TestClient:

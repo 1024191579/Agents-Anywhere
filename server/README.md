@@ -38,10 +38,6 @@ AGENT_SERVER_REDIS_URL=redis://127.0.0.1:6379/0 \
   uv run uvicorn agent_server.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-The Server runs on PostgreSQL only. SQLite support and the one-time v1 SQLite
-import tool were removed in 2.1.0; a v1 deployment has to be imported with a
-2.0.x release first.
-
 The Server requires the database to be at its exact Alembic schema revision and
 does not mutate a production database during startup. `upgrade` stamps an
 unversioned v2 database at the revision its columns match and applies every
@@ -93,7 +89,6 @@ curl http://127.0.0.1:8000/api/v2/health/ready
 | `AGENT_SERVER_EVENT_QUEUE_BYTES` | Maximum admitted large-event input bytes per Uvicorn worker. Defaults to `33554432` (32 MiB). This is not a limit on total process memory. |
 | `AGENT_SERVER_HOST` / `AGENT_SERVER_PORT` | Bind address/port for `agent_server.main`. Defaults to `127.0.0.1:8000`; the Docker image sets the host to `0.0.0.0`. |
 | `AGENT_SERVER_DB_URL` | Required PostgreSQL SQLAlchemy URL using the `postgresql+asyncpg` scheme. |
-| `AGENT_SERVER_DB_BACKEND` | Optional backend assertion. When set for runtime use, it must be `postgres`. |
 | `AGENT_SERVER_DB_POOL_SIZE` | PostgreSQL base connection pool size. Defaults to `10`. |
 | `AGENT_SERVER_DB_MAX_OVERFLOW` | PostgreSQL overflow connections per instance. Defaults to `20`. |
 | `AGENT_SERVER_DB_POOL_TIMEOUT` | Seconds to wait for a PostgreSQL pool checkout. Defaults to `30`. |

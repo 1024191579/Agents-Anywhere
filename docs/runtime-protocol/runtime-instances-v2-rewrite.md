@@ -338,8 +338,8 @@ unchanged.
 ## Verification gates
 
 - Connector full tests, focused supervisor/provider tests, Ruff, and Pyright.
-- Server full tests, SQLite migration coverage, PostgreSQL-compatible DDL, and
-  upgrade tests from current `v2_13` data.
+- Server full tests, migration coverage on PostgreSQL, and upgrade tests from
+  current `v2_13` data.
 - DSH source-state and archive behavior with dynamic runtime IDs.
 - Multiple Codex instances with distinct Homes and conflict rejection for the
   same Home.

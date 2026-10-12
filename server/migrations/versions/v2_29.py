@@ -78,9 +78,8 @@ def _project_foreign_key() -> dict | None:
 
 
 def _delete_session(bind, session_id: str) -> None:
-    # All current session-owned tables use ON DELETE CASCADE.  Explicitly
-    # remove rows as well so this remains safe on legacy SQLite databases whose
-    # foreign_keys pragma was disabled when they were created.
+    # All current session-owned tables use ON DELETE CASCADE. Explicitly
+    # remove rows as well so the cleanup does not depend on the cascade.
     for table in ("session_active_runs", "timeline_items", "session_shares"):
         if table in sa.inspect(bind).get_table_names():
             bind.execute(
