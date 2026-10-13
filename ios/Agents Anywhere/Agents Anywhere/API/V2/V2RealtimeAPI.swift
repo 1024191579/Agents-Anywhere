@@ -1,13 +1,13 @@
 import Foundation
 
-protocol V2RealtimeAPIProtocol {
+nonisolated protocol V2RealtimeAPIProtocol {
     func ticket(clientId: String, scope: V2RealtimeScope) async throws -> V2WebSocketTicket
     func recover(sessionId: V2SessionID, after cursor: String) async throws -> V2EventRecoveryResponse
     func sessionEvents(sessionId: V2SessionID, ticket: String) throws -> AsyncThrowingStream<V2SessionEvent, Error>
     func dashboardSnapshots(ticket: String) throws -> AsyncThrowingStream<V2DashboardSnapshot, Error>
 }
 
-struct V2RealtimeAPI: V2RealtimeAPIProtocol {
+nonisolated struct V2RealtimeAPI: V2RealtimeAPIProtocol {
     let serverURL: URL
     let transport: any HTTPTransport
     let webSocketTransport: any WebSocketTransport
@@ -130,7 +130,7 @@ struct V2RealtimeAPI: V2RealtimeAPIProtocol {
 
 /// Reads the frame kind and, unless it is a keepalive, the typed value from the
 /// same decoder pass.
-private struct V2SocketFrame<Value: Decodable>: Decodable {
+nonisolated private struct V2SocketFrame<Value: Decodable>: Decodable {
     let value: Value?
 
     private enum CodingKeys: String, CodingKey { case type }

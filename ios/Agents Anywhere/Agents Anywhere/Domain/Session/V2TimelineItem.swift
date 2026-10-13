@@ -1,6 +1,6 @@
 import Foundation
 
-enum V2TimelineItemType: String, Codable, Hashable {
+nonisolated enum V2TimelineItemType: String, Codable, Hashable {
     case turnStart = "turn.start"
     case turnEnd = "turn.end"
     case message
@@ -14,7 +14,7 @@ enum V2TimelineItemType: String, Codable, Hashable {
     case unknown
 }
 
-enum V2TimelineItemStatus: String, Codable, Hashable {
+nonisolated enum V2TimelineItemStatus: String, Codable, Hashable {
     case pending
     case running
     case waitingApproval = "waiting_approval"
@@ -26,7 +26,7 @@ enum V2TimelineItemStatus: String, Codable, Hashable {
     case unknown
 }
 
-enum V2MessageRole: String, Codable, Hashable {
+nonisolated enum V2MessageRole: String, Codable, Hashable {
     case user
     case assistant
     case system
@@ -34,7 +34,7 @@ enum V2MessageRole: String, Codable, Hashable {
     case unknown
 }
 
-struct V2TimelineItem: Decodable, Identifiable, Hashable {
+nonisolated struct V2TimelineItem: Decodable, Identifiable, Hashable {
     /// Preserve extension fields and unknown wire kinds for diagnostic exports.
     let raw: JSONValue
     let id: V2TimelineItemID
@@ -134,7 +134,7 @@ struct V2TimelineItem: Decodable, Identifiable, Hashable {
     }
 }
 
-enum V2TimelineItemContent: Hashable {
+nonisolated enum V2TimelineItemContent: Hashable {
     case message(V2MessageContent)
     case reasoning(V2ReasoningContent)
     case tool(V2ToolContent)
@@ -168,7 +168,7 @@ enum V2TimelineItemContent: Hashable {
     }
 }
 
-struct V2MessageContent: Hashable {
+nonisolated struct V2MessageContent: Hashable {
     let text: String
     let format: String?
     let attachments: [V2AttachmentContent]
@@ -182,7 +182,7 @@ struct V2MessageContent: Hashable {
     }
 }
 
-struct V2ReasoningContent: Hashable {
+nonisolated struct V2ReasoningContent: Hashable {
     let text: String
     let summary: String?
     let raw: JSONValue
@@ -194,7 +194,7 @@ struct V2ReasoningContent: Hashable {
     }
 }
 
-struct V2ToolContent: Hashable {
+nonisolated struct V2ToolContent: Hashable {
     let name: String?
     let input: JSONValue?
     let output: JSONValue?
@@ -208,7 +208,7 @@ struct V2ToolContent: Hashable {
     }
 }
 
-struct V2FileChangeContent: Hashable {
+nonisolated struct V2FileChangeContent: Hashable {
     let path: String?
     let action: String?
     let patch: String?
@@ -224,7 +224,7 @@ struct V2FileChangeContent: Hashable {
     }
 }
 
-struct V2MarkerContent: Hashable {
+nonisolated struct V2MarkerContent: Hashable {
     let title: String
     let subtitle: String?
     let variant: String?
@@ -238,7 +238,7 @@ struct V2MarkerContent: Hashable {
     }
 }
 
-struct V2ArtifactContent: Hashable {
+nonisolated struct V2ArtifactContent: Hashable {
     let title: String?
     let mediaType: String?
     let url: String?
@@ -252,7 +252,7 @@ struct V2ArtifactContent: Hashable {
     }
 }
 
-extension JSONValue {
+nonisolated extension JSONValue {
     nonisolated var arrayValue: [JSONValue]? {
         if case let .array(value) = self {
             return value
