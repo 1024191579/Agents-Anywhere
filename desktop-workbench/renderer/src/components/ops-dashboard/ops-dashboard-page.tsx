@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Activity, Gauge, Laptop, LineChart, RefreshCw, Users } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { useAuth } from "@/components/auth/auth-context"
@@ -16,9 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useWorkspace } from "@/components/workspace-context"
 import { dashboardApi } from "@/features/dashboard/api"
 import type { UsageLiveResponse, UsageReportResponse } from "@/features/dashboard/types"
 import {
@@ -32,27 +30,18 @@ import {
 } from "@/features/admin-usage/report-helpers"
 import { cn } from "@/lib/utils"
 
-type DashboardTab = "overview" | "users" | "usage" | "devices" | "quality"
+export type DashboardTab = "overview" | "users" | "usage" | "devices" | "quality"
 
 const PRESETS: UsageRangePreset[] = ["7d", "30d", "90d", "custom"]
 const LIVE_REFRESH_MS = 30_000
 
-const TABS: { id: DashboardTab; icon: typeof LineChart }[] = [
-  { id: "overview", icon: LineChart },
-  { id: "users", icon: Users },
-  { id: "usage", icon: Gauge },
-  { id: "devices", icon: Laptop },
-  { id: "quality", icon: Activity },
-]
-
-export function OpsDashboardPage() {
-  const { navigate } = useWorkspace()
+/** The usage board; `tab` comes from the administration route (`#/admin/<tab>`). */
+export function OpsDashboardPage({ tab }: { tab: DashboardTab }) {
   const { session } = useAuth()
   const t = useTranslations("pages.opsDashboard")
   const token = session?.accessToken
   const timeZone = React.useMemo(() => browserTimeZone(), [])
 
-  const [tab, setTab] = React.useState<DashboardTab>("overview")
   const [preset, setPreset] = React.useState<UsageRangePreset>("30d")
   const [range, setRange] = React.useState<UsageDateRange>(() => presetRange("30d", localToday(timeZone)))
   const [draft, setDraft] = React.useState<UsageDateRange>(range)
@@ -131,7 +120,7 @@ export function OpsDashboardPage() {
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="px-5 pb-0 pt-14 sm:px-8">
-        <PageHeader title={t("title")} description={t("description")} onBack={() => navigate("home")}>
+        <PageHeader title={t(`tabs.${tab}`)} description={t("description")}>
           <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={loading}>
             {loading ? <Spinner /> : <RefreshCw data-icon="inline-start" />}
             {t("refresh")}
@@ -193,20 +182,6 @@ export function OpsDashboardPage() {
         <p className="mt-3 text-xs text-muted-foreground">
           {dataSince ? t("dataSince", { date: dataSince }) : report ? t("noDataYet") : ""}
         </p>
-
-        <Tabs value={tab} onValueChange={(value) => setTab(value as DashboardTab)} className="mt-4">
-          <TabsList className="w-full justify-start overflow-x-auto">
-            {TABS.map((item) => {
-              const Icon = item.icon
-              return (
-                <TabsTrigger key={item.id} value={item.id} className="gap-1.5">
-                  <Icon className="size-3.5" />
-                  {t(`tabs.${item.id}`)}
-                </TabsTrigger>
-              )
-            })}
-          </TabsList>
-        </Tabs>
       </div>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">

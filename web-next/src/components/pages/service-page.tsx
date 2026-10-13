@@ -17,7 +17,6 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/auth/auth-context"
 import { PageHeader } from "@/components/pages/page-header"
 import { ServiceEmailCard } from "@/components/pages/service-email-card"
-import { ServiceAnnouncementCard } from "@/components/pages/service-announcement-card"
 import { LoadingState } from "@/components/loading-state"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +43,6 @@ import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useWorkspace } from "@/components/workspace-context"
 import { authApi } from "@/features/auth/api"
 import type {
   InstanceSettings,
@@ -199,7 +197,6 @@ const oauthTemplates: Record<OAuthTemplateKey, OAuthTemplate> = {
 }
 
 export function ServicePage() {
-  const { navigate } = useWorkspace()
   const { session, me } = useAuth()
   const t = useTranslations("pages.service")
   const tCommon = useTranslations("common")
@@ -347,7 +344,7 @@ export function ServicePage() {
   return (
     <ScrollArea className="@container/page h-full w-full bg-background">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 pb-16 pt-14 @min-[68rem]/page:pt-8">
-        <PageHeader title={t("title")} description={t("description")} onBack={() => navigate("home")}>
+        <PageHeader title={t("title")} description={t("description")}>
           <Button type="button" variant="outline" onClick={() => load()} disabled={loading}>
             <RefreshCw data-icon="inline-start" />
             {t("refresh")}
@@ -397,8 +394,6 @@ export function ServicePage() {
         </Card>
 
         <ServiceEmailCard settings={settings.email} token={session?.accessToken ?? ""} isAdmin={isAdmin} onSaved={setSettings} />
-
-        {isAdmin && session?.accessToken && <ServiceAnnouncementCard token={session.accessToken} />}
 
         <OAuthProviderCard
           draft={oauthDraft}

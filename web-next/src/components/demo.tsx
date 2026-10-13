@@ -12,9 +12,9 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { TaskComposer } from "@/components/task-composer"
 import { SessionView } from "@/components/session-view"
 import { SettingsPage } from "@/components/pages/settings-page"
-import { DashboardPage } from "@/components/pages/dashboard-page"
-import { TeamPage } from "@/components/pages/team-page"
-import { ServicePage } from "@/components/pages/service-page"
+import { SettingsSidebar } from "@/components/settings/settings-sidebar"
+import { AdminPage } from "@/components/admin/admin-page"
+import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { DevicePage } from "@/components/pages/device-page"
 import { MobileConnectionsPage } from "@/components/pages/mobile-connections-page"
 import { WorkspaceProvider, useWorkspace } from "@/components/workspace-context"
@@ -65,13 +65,22 @@ export function Demo() {
   )
 }
 
+/** The sidebar slot: workspace by default, section navigation on standalone pages. */
+function WorkspaceNavigation({ contained = false }: { contained?: boolean }) {
+  const { page } = useWorkspace()
+  const { me } = useAuth()
+  if (page === "admin" && me?.role === "admin") return <AdminSidebar contained={contained} />
+  if (page === "settings") return <SettingsSidebar contained={contained} />
+  return <AppSidebar contained={contained} />
+}
+
 function DashboardShell() {
   const isMobile = useIsMobile()
 
   if (isMobile) {
     return (
       <>
-        <AppSidebar />
+        <WorkspaceNavigation />
         <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-none bg-background">
           <WorkspaceSidebarControl><WorkspaceMain /></WorkspaceSidebarControl>
         </SidebarInset>
@@ -229,7 +238,7 @@ function DesktopResizableShell() {
               className="h-full shrink-0 overflow-hidden"
               style={{ width: Math.max(sidebarWidth, DESKTOP_SIDEBAR_MIN_WIDTH) }}
             >
-              <AppSidebar contained />
+              <WorkspaceNavigation contained />
             </div>
           </ResizablePanel>
           <ResizableHandle
@@ -270,22 +279,27 @@ function WorkspaceMain() {
     openPairDeviceDialog,
     closePairDeviceDialog,
     refreshData,
+    replaceHome,
   } = useWorkspace()
   const t = useTranslations("dashboard.firstDevice")
   const isNewSession = page === "home"
   const isAdmin = me?.role === "admin"
-  if (!routeReady || (!isNewSession && isLoading)) {
+  // Members who land on an administration route go home instead of seeing
+  // an empty admin shell; the hash is replaced so Back does not loop.
+  React.useEffect(() => {
+    if (routeReady && page === "admin" && me && !isAdmin) replaceHome()
+  }, [isAdmin, me, page, replaceHome, routeReady])
+  // Administration and personal settings render without the workspace inventory.
+  const standalonePage = page === "admin" || page === "settings"
+  if (!routeReady || (page === "admin" && !isAdmin) || (!standalonePage && !isNewSession && isLoading)) {
     return <LoadingState className="h-full bg-background" />
   }
-  const effectivePage = !isAdmin && (page === "dashboard" || page === "team" || page === "service") ? "home" : page
   const content =
-    effectivePage === "settings" ? <SettingsPage /> :
-    effectivePage === "dashboard" ? <DashboardPage /> :
-    effectivePage === "team" ? <TeamPage /> :
-    effectivePage === "service" ? <ServicePage /> :
-    effectivePage === "mobile-connections" ? <MobileConnectionsPage /> :
-    effectivePage === "session" ? <SessionView /> :
-    effectivePage === "device" ? <DevicePage /> :
+    page === "settings" ? <SettingsPage /> :
+    page === "admin" ? <AdminPage /> :
+    page === "mobile-connections" ? <MobileConnectionsPage /> :
+    page === "session" ? <SessionView /> :
+    page === "device" ? <DevicePage /> :
     <TaskComposer />
   return (
     <>

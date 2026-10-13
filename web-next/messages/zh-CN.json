@@ -246,7 +246,8 @@
     "mobileStatus": {
       "approved": "已批准",
       "waiting": "等待扫码"
-    }
+    },
+    "backHome": "返回主页"
   },
   "dashboard": {
     "actions": {
@@ -305,10 +306,7 @@
       "title": "无法加载主界面"
     },
     "nav": {
-      "dashboard": "看板",
-      "service": "服务",
-      "settings": "设置",
-      "team": "团队"
+      "settings": "设置"
     },
     "filters": {
       "deviceAgentAria": "按设备与 Agent 筛选项目",
@@ -1919,6 +1917,16 @@
       "retry": "重新加载",
       "publishedAt": "上次发布：{time}",
       "notPublished": "尚未发布"
+    }
+  },
+  "admin": {
+    "title": "管理",
+    "groups": {
+      "data": "数据",
+      "management": "管理"
+    },
+    "announcements": {
+      "description": "发布或更新向所有用户展示的公告。"
     }
   }
 }

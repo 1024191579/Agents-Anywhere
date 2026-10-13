@@ -246,7 +246,8 @@
     "mobileStatus": {
       "approved": "Approved",
       "waiting": "Waiting for scan"
-    }
+    },
+    "backHome": "Back to home"
   },
   "dashboard": {
     "actions": {
@@ -322,10 +323,7 @@
       "clear": "Clear filters"
     },
     "nav": {
-      "dashboard": "Dashboard",
-      "service": "Service",
-      "settings": "Settings",
-      "team": "Team"
+      "settings": "Settings"
     },
     "new": {
       "askApproval": "Ask approval",
@@ -1919,6 +1917,16 @@
       "retry": "Reload",
       "publishedAt": "Last published: {time}",
       "notPublished": "Not published yet"
+    }
+  },
+  "admin": {
+    "title": "Administration",
+    "groups": {
+      "data": "Data",
+      "management": "Management"
+    },
+    "announcements": {
+      "description": "Publish or update the announcement shown to every user."
     }
   }
 }

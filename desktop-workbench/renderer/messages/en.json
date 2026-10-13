@@ -263,7 +263,8 @@
       "approved": "Approved",
       "waiting": "Waiting for scan"
     },
-    "copyFailed": "Copy failed. Please select the text and copy it manually."
+    "copyFailed": "Copy failed. Please select the text and copy it manually.",
+    "backHome": "Back to home"
   },
   "dashboard": {
     "actions": {
@@ -339,10 +340,7 @@
       "clear": "Clear filters"
     },
     "nav": {
-      "dashboard": "Dashboard",
-      "service": "Service",
-      "settings": "Settings",
-      "team": "Team"
+      "settings": "Settings"
     },
     "new": {
       "askApproval": "Ask approval",
@@ -2075,6 +2073,16 @@
       "retry": "Reload",
       "publishedAt": "Last published: {time}",
       "notPublished": "Not published yet"
+    }
+  },
+  "admin": {
+    "title": "Administration",
+    "groups": {
+      "data": "Data",
+      "management": "Management"
+    },
+    "announcements": {
+      "description": "Publish or update the announcement shown to every user."
     }
   }
 }
