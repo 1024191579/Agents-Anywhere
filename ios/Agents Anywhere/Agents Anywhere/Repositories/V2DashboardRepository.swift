@@ -75,13 +75,16 @@ final class V2DashboardRepository {
 
     private func apply(connectors: [V2Connector], projects: [V2Project], sessions incoming: [V2SessionMeta]) {
         generation += 1; projectGeneration += 1
-        self.connectors = connectors
-        self.projects = projects
+        if self.connectors != connectors { self.connectors = connectors }
+        if self.projects != projects { self.projects = projects }
         let current = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
         let validDevices = Set(connectors.map(\.id))
         let pending = sessions.filter { $0.id.hasPrefix("local:") && validDevices.contains($0.connectorId) }
-        self.sessions = unique(pending + incoming.map { merge(current[$0.id], $0) })
-        hasLoaded = true; isFresh = true; error = nil
+        let merged = unique(pending + incoming.map { merge(current[$0.id], $0) })
+        if sessions != merged { sessions = merged }
+        if !hasLoaded { hasLoaded = true }
+        if !isFresh { isFresh = true }
+        if error != nil { error = nil }
         changed(); refreshMissingProjects()
     }
 

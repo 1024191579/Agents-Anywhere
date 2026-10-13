@@ -52,11 +52,15 @@ struct V2SessionProjection {
         data.liveStateIsFresh = data.session.connectorStatus == .online
     }
 
-    mutating func applyMeta(_ session: V2SessionMeta) {
-        guard session.id == data.session.id, session.updatedSeq >= data.session.updatedSeq else { return }
+    /// Returns false when the metadata was stale or identical, so callers can
+    /// skip republishing the whole projection.
+    @discardableResult mutating func applyMeta(_ session: V2SessionMeta) -> Bool {
+        guard session.id == data.session.id, session.updatedSeq >= data.session.updatedSeq,
+              session != data.session else { return false }
         let changedRuntime = session.effectiveRuntimeId != data.session.effectiveRuntimeId
         data.session = session
         if changedRuntime || session.connectorStatus != .online { markStale() }
+        return true
     }
 
     mutating func applyState(_ state: V2RuntimeState) {

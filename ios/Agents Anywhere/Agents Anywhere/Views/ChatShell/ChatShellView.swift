@@ -83,7 +83,10 @@ struct ChatShellView: View {
     }
 
     private func sidebarLayout(_ layout: ChatSidebarState.Layout) -> some View {
-        SidebarDrawer(
+        // Map and sort the session list once per body, not once per section.
+        let sessions = sidebarSessions
+        let services = appState.nativeChatServices
+        return SidebarDrawer(
             isOpen: sidebarBinding(for: layout),
             presentation: layout == .regularSplit ? .nativeSidebar : .drawer,
             configuration: .chat
@@ -91,11 +94,13 @@ struct ChatShellView: View {
             ChatSidebarHeaderView()
         } sidebar: { safeAreaInsets in
             ChatSidebarView(
+                appState: appState,
+                agentSetup: services?.agentSetup,
                 safeAreaInsets: safeAreaInsets,
                 devices: sidebarDevices,
-                pinnedSessions: sidebarSessions.filter(\.pinned),
-                recentSessions: sidebarSessions.filter { !$0.pinned },
-                repository: appState.nativeChatServices?.dashboardRepository,
+                pinnedSessions: sessions.filter(\.pinned),
+                recentSessions: sessions.filter { !$0.pinned },
+                repository: services?.dashboardRepository,
                 onNewProjectSession: startProjectSession,
                 onRestoreSession: { await appState.setSessionArchived(sessionId: $0, archived: false) },
                 account: sidebarAccount,

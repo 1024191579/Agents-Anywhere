@@ -64,7 +64,7 @@ struct NewSessionView: View, Equatable {
                     isBusy: model.isCreating, isLoadingSettings: model.isPreparing,
                     onSend: { text in if let session = await model.create(text: text) { onCreated(session) } },
                     onApplySettings: { model.saveSelections(); return true },
-                    onDraftChange: { model.saveDraft() })
+                    onDraftChange: { model.scheduleDraftSave() })
                 }
                 .frame(maxWidth: ChatControlMetrics.maximumContentWidth).frame(maxWidth: .infinity)
             }

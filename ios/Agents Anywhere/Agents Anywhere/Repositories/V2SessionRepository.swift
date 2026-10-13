@@ -346,11 +346,12 @@ final class V2SessionRepository {
         for session in sessions {
             guard let entry = entries[session.id] else { continue }
             let previous = entry.projection?.data.session
-            entry.projection?.applyMeta(session)
-            if session.connectorStatus != .online || previous?.effectiveRuntimeId != session.effectiveRuntimeId {
-                invalidateCatalogs(entry)
-            }
-            emit(entry)
+            // Dashboard pushes repeat every session on each tick; unchanged
+            // metadata must not re-project and re-persist every open session.
+            let changed = entry.projection?.applyMeta(session) ?? false
+            let invalidates = session.connectorStatus != .online || previous?.effectiveRuntimeId != session.effectiveRuntimeId
+            if invalidates { invalidateCatalogs(entry) }
+            if changed || invalidates { emit(entry) }
             if session.connectorStatus == .online,
                previous?.connectorStatus != .online || previous?.effectiveRuntimeId != session.effectiveRuntimeId {
                 // A dashboard projection can arrive before the session socket frame.

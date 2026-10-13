@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published private(set) var serverURL: URL?
     @Published private(set) var me: AuthMe? {
         didSet {
+            guard me != oldValue else { return }
             accountAvatarSource = AccountAvatarImageSource.parse(me?.avatar)
             if let me, let serverURL, let token = accessToken() { restoration.save(profile: me, server: serverURL, token: token) }
         }
@@ -54,6 +55,9 @@ final class AppState: ObservableObject {
     private var dashboardUpdatesTask: Task<Void, Never>?
     private var cachedServices: V2ClientServices?
     private var cachedServicesTokenProvider: MutableAuthTokenProvider?
+    /// Keychain is the durable source; view bodies and task identities read
+    /// this copy instead of performing a Security framework round trip each time.
+    private var cachedToken: String?
     private var isInBackground = false
     private var visibleSessionID: V2SessionID?
 
@@ -69,7 +73,10 @@ final class AppState: ObservableObject {
     var isServerConnected: Bool { cachedServices?.dashboardRepository.canWrite == true }
 
     func accessToken() -> String? {
-        try? keychain.readString(account: tokenAccount)
+        if let cachedToken { return cachedToken }
+        let token = try? keychain.readString(account: tokenAccount)
+        if let token, !token.isEmpty { cachedToken = token }
+        return token
     }
 
     func restoreSession() async {
@@ -123,7 +130,10 @@ final class AppState: ObservableObject {
                     guard !Task.isCancelled, authenticationEpoch == epoch else { return }
                     restoreConnectionError = nil
                     startDashboardUpdates()
-                    await refreshDashboard()
+                    // Returning to the foreground reopens the dashboard socket, which
+                    // pushes a snapshot; a full HTTP reload is only needed when the
+                    // account changed or the last read is genuinely old.
+                    if accountChanged { await refreshDashboard() } else { await refreshDashboardIfStale(minimumInterval: 30) }
                     return
                 } catch {
                     guard !Task.isCancelled, authenticationEpoch == epoch, accountSyncID == id else { return }
@@ -318,15 +328,16 @@ final class AppState: ObservableObject {
     private func syncDashboard(_ services: V2ClientServices) {
         guard cachedServices === services else { return }
         let repository = services.dashboardRepository
+        // Every @Published write re-evaluates the whole shell; only publish real changes.
         if connectors != repository.connectors { connectors = repository.connectors }
         if projects != repository.projects { projects = repository.projects }
         if sessions != repository.sessions { sessions = repository.sessions }
-        isDashboardLoading = repository.isLoading
-        hasLoadedConnectors = repository.hasLoaded
-        hasLoadedSessions = repository.hasLoaded
-        dashboardError = repository.error
-        connectorsError = repository.error
-        sessionsError = repository.error
+        if isDashboardLoading != repository.isLoading { isDashboardLoading = repository.isLoading }
+        if hasLoadedConnectors != repository.hasLoaded { hasLoadedConnectors = repository.hasLoaded }
+        if hasLoadedSessions != repository.hasLoaded { hasLoadedSessions = repository.hasLoaded }
+        if dashboardError != repository.error { dashboardError = repository.error }
+        if connectorsError != repository.error { connectorsError = repository.error }
+        if sessionsError != repository.error { sessionsError = repository.error }
         services.sessionReads.setActive(!isInBackground)
         services.sessionReads.updateConnectivity(repository.isFresh ? services.connectivity.status : .init(availability: .offline))
         services.sessionRepository.applyMetadata(sessions)
@@ -654,6 +665,7 @@ final class AppState: ObservableObject {
         dashboardUpdatesTask?.cancel()
         dashboardUpdatesTask = nil
         try keychain.delete(account: tokenAccount)
+        cachedToken = nil
         authenticationEpoch = UUID(); accountSyncID = UUID()
         accountSyncTask?.cancel(); accountSyncTask = nil; isRetryingServerConnection = false
         restoration.clear(scope: cachedServices?.scope)
@@ -732,6 +744,7 @@ final class AppState: ObservableObject {
 
     private func applyDashboardSnapshot(_ snapshot: V2DashboardSnapshot) {
         cachedServices?.dashboardRepository.apply(snapshot)
+        lastDashboardRefreshAt = Date()
     }
 
     private func isAuthenticationFailure(_ error: Error) -> Bool {
@@ -765,7 +778,7 @@ final class AppState: ObservableObject {
         guard
             let serverURL,
             let accountID = me?.userId,
-            let token = try? keychain.readString(account: tokenAccount),
+            let token = accessToken(),
             !token.isEmpty
         else {
             return nil
@@ -828,6 +841,7 @@ final class AppState: ObservableObject {
         // A failed Keychain write must not replace the saved server or invalidate
         // the existing session. Commit in-memory/defaults changes only on success.
         try keychain.saveString(token, account: tokenAccount)
+        cachedToken = token
         authenticationEpoch = UUID(); accountSyncID = UUID()
         accountSyncTask?.cancel(); accountSyncTask = nil; isRetryingServerConnection = false
         restoreConnectionError = nil
