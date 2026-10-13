@@ -26,6 +26,8 @@ canonical platform session IDs directly. This retains the existing hash algorith
 Feature flags add `readOnly` and `snapshotPagination`; these are optional 1.x fields.
 
 The canonical Timeline schema already defines `type/status/content/source/contentHash`.
+
+When the Server refuses a complete snapshot for good (HTTP 413, another 4xx, or a 200 whose `rejected` list names it), the Connector still acknowledges the `snapshot.commit` so the feed moves on to the other sessions, but does not save that session's checkpoint, reports it as `unavailable` (reason `history_too_large` or `history_rejected`), withholds its live `timeline.itemUpsert` / `session.turnEnded` and asks for a fresh capture with `runtime.sync.refresh` after a growing delay. Transient failures (network, 5xx) still fail the subscription as before.
 Legacy native `payload` envelopes are not part of that schema and are no longer
 projected by Python. The plugin is the sole native-log projection owner.
 
