@@ -163,6 +163,9 @@ nonisolated enum TimelineText {
         return normalized.hasPrefix(root + "/") ? String(normalized.dropFirst(root.count + 1)) : path
     }
     static func message(_ value: String) -> String {
+        // Every streamed version of a reply passes through here; one scan for
+        // the shared marker prefix answers the common case without three searches.
+        guard value.contains("\n\n[") else { return value }
         let ends = ["\n\n[Attached file: ", "\n\n[Failed to load attachment ", "\n\n[Attachments dropped "]
             .compactMap { value.range(of: $0)?.lowerBound }
         return ends.min().map { String(value[..<$0]).replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression) } ?? value
