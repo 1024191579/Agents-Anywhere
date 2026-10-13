@@ -110,6 +110,37 @@ test('service settings are split into pages and no page carries the announcement
   assert.equal(announcement.mock.callCount(), 0)
 })
 
+const percentiles = { p50: null, p90: null, p99: null, samples: 0 }
+const quietReport = {
+  range: { fromDate: '2026-10-01', toDate: '2026-10-07', timezone: 'Asia/Shanghai', dataSince: '2026-10-01', generatedAt: '2026-10-08T00:00:00Z' },
+  summary: {
+    activeUsers: 3, newUsers: 0, avgDau: 1, wau: 3, mau: 3, totalUsers: 5,
+    messages: 40, sessions: 6, sessionViews: 21, sessionsViewed: 9, sessionsReadOnly: 4,
+    turns: 30, turnFailureRate: null, turnDurationMs: percentiles,
+    approvalsRequested: 0, approvalsResolved: 0, approvalWaitMs: percentiles,
+    runtimeErrors: 0, connectorsOnline: 1, totalConnectors: 2,
+  },
+  daily: [],
+  hourOfDay: [],
+  users: { segments: [], messageHistogram: [], retention: [] },
+  runtimes: [],
+  devices: { totalConnectors: 2, connectorsSeen7d: 1, connectorsSeen30d: 2, byOs: [], inventoryDaily: [], inventoryAsOf: 'live' },
+  quality: { turnOutcomes: [], turnDurationMs: percentiles, approvalOutcomes: [], approvalWaitMs: percentiles, runtimeErrors: 0 },
+  serverTime: '2026-10-08T00:00:00Z',
+}
+
+test('the usage section tells read-only sessions and opens apart from active sessions', async (t) => {
+  t.mock.method(dashboardApi, 'getAdminUsageReport', async () => quietReport)
+  t.mock.method(dashboardApi, 'getAdminUsageLive', async () => { throw new Error('offline') })
+  const container = await render(t, h(AdminPage), { section: 'usage' })
+  assert.match(container.textContent, /活跃会话6/)
+  assert.match(container.textContent, /只读会话4共读过 9 个会话/)
+  assert.match(container.textContent, /读取次数21/)
+  assert.match(container.textContent, /每日会话/)
+  const overview = await render(t, h(AdminPage), { section: 'overview' })
+  assert.match(overview.textContent, /活跃会话6另有 4 个只读/)
+})
+
 test('usage board sections come from the route and keep the board header', async (t) => {
   const report = t.mock.method(dashboardApi, 'getAdminUsageReport', async () => { throw new Error('fixture report failure') })
   t.mock.method(dashboardApi, 'getAdminUsageLive', async () => { throw new Error('offline') })
