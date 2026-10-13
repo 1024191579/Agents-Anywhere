@@ -184,11 +184,6 @@ extension V2TimelineItem {
     var isVisibleInChat: Bool {
         guard status != .hidden, ![.turnStart, .turnEnd].contains(type) else { return false }
         if type == .artifact && raw["content"]?["kind"] == .string("diff") { return false }
-        if type == .message, source["runtime"] == .string("claude") {
-            let text = displayText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if role == .user && ["[Request interrupted by user]", "[Request interrupted by user for tool use]"].contains(text) { return false }
-            if role == .assistant && text == "No response requested." { return false }
-        }
         return true
     }
 }
