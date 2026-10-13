@@ -4,8 +4,8 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-// Slightly longer than the animations below so the fallback never cuts one off.
-const LEAVE_FALLBACK_MS = 360
+// Slightly longer than the slide so the fallback never cuts one short.
+const SETTLE_FALLBACK_MS = 480
 
 type Direction = "push" | "pop"
 
@@ -14,11 +14,18 @@ type Layer = {
   depth: number
 }
 
+type Stack = {
+  current: Layer
+  leaving: Layer | null
+  direction: Direction | null
+}
+
 /**
- * Swaps sidebars the way a settings app pushes and pops pages: a deeper sidebar
- * slides in from the right over the current one, a shallower one is revealed
- * while the current one slides out to the right. The leaving sidebar stays
- * mounted only for its animation and takes no input. The first sidebar mounts
+ * Slides between sidebars the way a carousel moves between pages: the two
+ * sidebars sit next to each other on a track twice the sidebar's width and the
+ * track glides one width, so nothing covers anything. A deeper sidebar comes
+ * in from the right, a shallower one from the left. The leaving sidebar stays
+ * mounted only for the ride and takes no input; the first sidebar mounts
  * without motion.
  */
 export function SidebarSwitch({
@@ -33,11 +40,13 @@ export function SidebarSwitch({
   children: (id: string) => React.ReactNode
   className?: string
 }) {
-  const [stack, setStack] = React.useState<{
-    current: Layer
-    leaving: Layer | null
-    direction: Direction | null
-  }>({ current: { id, depth }, leaving: null, direction: null })
+  const trackRef = React.useRef<HTMLDivElement | null>(null)
+  const wasSlidingRef = React.useRef(false)
+  const [stack, setStack] = React.useState<Stack>({
+    current: { id, depth },
+    leaving: null,
+    direction: null,
+  })
 
   if (stack.current.id !== id) {
     setStack({
@@ -47,58 +56,73 @@ export function SidebarSwitch({
     })
   }
 
-  const leavingId = stack.leaving?.id ?? null
+  const { current, leaving, direction } = stack
+  const sliding = leaving !== null
+  // The shallower sidebar sits first on the track: a push moves the track left
+  // to bring the deeper one in, a pop moves it back to the right.
+  const panels = !leaving ? [current] : direction === "push" ? [leaving, current] : [current, leaving]
+  const restingShift = sliding && direction === "push" ? -50 : 0
+
   const settle = React.useCallback(() => {
-    setStack((state) => (state.leaving ? { ...state, leaving: null } : state))
+    setStack((state) => (state.leaving ? { ...state, leaving: null, direction: null } : state))
   }, [])
 
-  React.useEffect(() => {
-    if (leavingId === null) return
-    const timer = window.setTimeout(settle, LEAVE_FALLBACK_MS)
-    return () => window.clearTimeout(timer)
-  }, [leavingId, settle])
+  React.useLayoutEffect(() => {
+    const track = trackRef.current
+    const wasSliding = wasSlidingRef.current
+    wasSlidingRef.current = sliding
+    if (!track || !sliding || wasSliding) return
+    // Start with the leaving sidebar still in view and let the transition
+    // carry the track to its resting position. A slide reversed midway is
+    // not restarted: React only changes the target and the transition
+    // continues from wherever the track is.
+    track.style.transform = `translateX(${restingShift === 0 ? -50 : 0}%)`
+    void track.getBoundingClientRect()
+    track.style.transform = `translateX(${restingShift}%)`
+  }, [sliding, restingShift])
 
-  const layers = stack.leaving ? [stack.leaving, stack.current] : [stack.current]
-  const direction = stack.direction
+  React.useEffect(() => {
+    if (!sliding) return
+    const timer = window.setTimeout(settle, SETTLE_FALLBACK_MS)
+    return () => window.clearTimeout(timer)
+  }, [stack, sliding, settle])
 
   return (
     <div className={cn("relative h-full min-h-0 overflow-hidden", className)}>
-      {layers.map((layer) => {
-        const leaving = layer.id === leavingId
-        return (
-          <div
-            key={layer.id}
-            data-slot="sidebar-layer"
-            data-state={leaving ? "leaving" : "current"}
-            aria-hidden={leaving || undefined}
-            className={cn(
-              "h-full",
-              leaving ? "pointer-events-none absolute inset-0" : "relative",
-              direction && motionClasses(direction, leaving)
-            )}
-            onAnimationEnd={
-              leaving
-                ? (event) => {
-                    if (event.target === event.currentTarget) settle()
-                  }
-                : undefined
-            }
-          >
-            {children(layer.id)}
-          </div>
-        )
-      })}
+      <div
+        ref={trackRef}
+        data-slot="sidebar-track"
+        data-state={sliding ? "sliding" : "idle"}
+        className={cn(
+          "flex h-full",
+          sliding
+            ? "w-[200%] transition-transform duration-400 ease-[cubic-bezier(0.05,0.7,0.1,1)]"
+            : "w-full"
+        )}
+        style={sliding ? { transform: `translateX(${restingShift}%)` } : undefined}
+        onTransitionEnd={(event) => {
+          if (event.target === event.currentTarget && event.propertyName === "transform") settle()
+        }}
+      >
+        {panels.map((panel) => {
+          const isLeaving = panel.id === leaving?.id
+          return (
+            <div
+              key={panel.id}
+              data-slot="sidebar-layer"
+              data-state={isLeaving ? "leaving" : "current"}
+              aria-hidden={isLeaving || undefined}
+              className={cn(
+                "h-full min-w-0 shrink-0",
+                sliding ? "w-1/2" : "w-full",
+                isLeaving && "pointer-events-none"
+              )}
+            >
+              {children(panel.id)}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
-}
-
-function motionClasses(direction: Direction, leaving: boolean): string {
-  if (direction === "push") {
-    return leaving
-      ? "z-0 animate-out fade-out slide-out-to-left-1/3 fill-mode-forwards duration-300 ease-out"
-      : "z-10 animate-in slide-in-from-right duration-300 ease-out"
-  }
-  return leaving
-    ? "z-10 animate-out slide-out-to-right fill-mode-forwards duration-300 ease-out"
-    : "z-0 animate-in fade-in slide-in-from-left-1/3 duration-300 ease-out"
 }
