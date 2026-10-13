@@ -11,6 +11,8 @@ final class ChatTimelineRowModel: Identifiable {
     private(set) var layoutGeneration = 0
     @ObservationIgnored private var settlesAt: TimeInterval = 0
     @ObservationIgnored private var hasFlushed = false
+    /// False while a streaming batch withholds the final glyph of the received text.
+    @ObservationIgnored private var displaysFullText = false
 
     init(_ value: V2TimelineItem, animate: Bool = false) {
         id = value.id; self.value = value
@@ -21,7 +23,8 @@ final class ChatTimelineRowModel: Identifiable {
     /// Returns true when newly displayed text starts a reveal batch.
     @discardableResult
     func flush(_ next: V2TimelineItem, animate: Bool, now: TimeInterval) -> Bool {
-        if animate && hasFlushed && value == next { settle(now: now); return false }
+        // Unchanged rows neither recompute their structure nor rescan their text.
+        if hasFlushed && value == next && (animate || displaysFullText) { settle(now: now); return false }
         hasFlushed = true
         let received = next.displayText
         let appending = received.hasPrefix(text)
@@ -30,6 +33,7 @@ final class ChatTimelineRowModel: Identifiable {
         let safeText = animate && appending && next.isStreamingText && !received.isEmpty
             ? String(received.dropLast()) : received
         let displayed = safeText.hasPrefix(text) || !appending ? safeText : received
+        displaysFullText = displayed == received
         var started = false
         if displayed != text {
             isRevealing = animate && appending
@@ -60,6 +64,7 @@ final class SessionTimelinePresentation {
     private(set) var rows: [ChatTimelineRowModel] = []
     private(set) var pendingMessages: [V2PendingMessage] = []
     private(set) var hasPresentedSnapshot = false
+    @ObservationIgnored private var rowsByID: [V2TimelineItemID: ChatTimelineRowModel] = [:]
     @ObservationIgnored private var pending: [V2TimelineItem]?
     @ObservationIgnored private var animatePending = false
     @ObservationIgnored private var initialized = false
@@ -93,17 +98,28 @@ final class SessionTimelinePresentation {
 
     func flush(now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         if let pending {
-            let existing = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
             let previousTail = rows.last?.value.orderSeq ?? Int.min
             var started = false
-            let updated = pending.map { value in
-                let animate = animatePending && (existing[value.id] != nil || value.orderSeq > previousTail)
-                let row = existing[value.id] ?? ChatTimelineRowModel(value, animate: animate && value.isAssistantText)
+            var updated: [ChatTimelineRowModel] = []
+            updated.reserveCapacity(pending.count)
+            var orderChanged = pending.count != rows.count
+            for (index, value) in pending.enumerated() {
+                let existing = rowsByID[value.id]
+                let animate = animatePending && (existing != nil || value.orderSeq > previousTail)
+                let row: ChatTimelineRowModel
+                if let existing { row = existing } else {
+                    row = ChatTimelineRowModel(value, animate: animate && value.isAssistantText)
+                    rowsByID[value.id] = row
+                }
                 if row.flush(value, animate: animate, now: now) { started = true }
-                return row
+                if !orderChanged, rows[index] !== row { orderChanged = true }
+                updated.append(row)
             }
             if started { nextBatchAt = now + ReplyPresentation.batchInterval }
-            if rows.map(\.id) != updated.map(\.id) { rows = updated }
+            if orderChanged {
+                rows = updated
+                rowsByID = Dictionary(uniqueKeysWithValues: updated.map { ($0.id, $0) })
+            }
             if !hasPresentedSnapshot { hasPresentedSnapshot = true }
             self.pending = nil; pendingWasStaged = false
         }
@@ -166,13 +182,5 @@ extension V2TimelineItem {
     var isStreamingText: Bool {
         (status == .pending || status == .running)
             && isAssistantText
-    }
-    var displayText: String {
-        switch content {
-        case let .message(value): TimelineText.message(value.text)
-        case let .reasoning(value): TimelineText.reasoning(value.raw)
-        case let .marker(value): isReasoning ? TimelineText.reasoning(value.raw) : ""
-        default: ""
-        }
     }
 }

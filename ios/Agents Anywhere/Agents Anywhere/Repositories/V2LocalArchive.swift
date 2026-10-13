@@ -49,7 +49,7 @@ nonisolated struct V2SessionArchive: Codable {
     }
 
     @MainActor func projection(maximumItems: Int) throws -> V2SessionProjection {
-        let decoded = try items.map { try JSONDecoder().decode(V2TimelineItem.self, from: JSONEncoder().encode($0)) }
+        let decoded = try items.map { try V2TimelineItem(json: $0) }
         let empty = V2RuntimeCapabilitySnapshot(revision: 0, capabilities: [])
         let snapshot = V2SessionSnapshot(session: session, state: nil,
             timeline: .init(items: decoded, nextSeq: V2SessionProjection.sequence(cursor), hasMore: hasOlderItems),

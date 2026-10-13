@@ -513,7 +513,6 @@ final class V2SessionRepository {
             entry.historyTask = nil
         }
         try entry.projection?.apply(event)
-        confirmEchoes(event, entry: entry)
         if event.type == "runtime.catalog.updated" || entry.projection?.data.session.connectorStatus != .online {
             invalidateCatalogs(entry)
         }
@@ -539,7 +538,6 @@ final class V2SessionRepository {
             } else {
                 for event in recovery.events.sorted(by: { $0.sequence < $1.sequence }) {
                     try entry.projection?.apply(event)
-                    confirmEchoes(event, entry: entry)
                 }
                 entry.projection?.advanceCursor(recovery.nextCursor)
             }
@@ -598,14 +596,6 @@ final class V2SessionRepository {
         entry.model.update(observation(entry), network: network)
         for observer in entry.observers.values { observer.yield(observation(entry)) }
         schedulePersistence()
-    }
-
-    private func confirmEchoes(_ event: V2SessionEvent, entry: Entry) {
-        if let raw = event.payload["item"],
-           let data = try? JSONEncoder().encode(raw),
-           let item = try? JSONDecoder().decode(V2TimelineItem.self, from: data) {
-            entry.model.confirmEcho(item)
-        }
     }
 
     private func invalidateCatalogs(_ entry: Entry) {
