@@ -246,7 +246,8 @@
     "mobileStatus": {
       "approved": "Approved",
       "waiting": "Waiting for scan"
-    }
+    },
+    "backHome": "Back to home"
   },
   "dashboard": {
     "actions": {
@@ -322,10 +323,7 @@
       "clear": "Clear filters"
     },
     "nav": {
-      "dashboard": "Dashboard",
-      "service": "Service",
-      "settings": "Settings",
-      "team": "Team"
+      "settings": "Settings"
     },
     "new": {
       "askApproval": "Ask approval",
@@ -1830,16 +1828,10 @@
       "saveProvider": "Save provider",
       "saving": "Saving...",
       "firstPartyClients": "First-party Clients",
-      "firstPartyClientsDescription": "Use the Web redirect URL for upstream OAuth providers. Built-in native clients use fixed identifiers and callbacks.",
-      "clientMode": "Mode",
-      "locked": "locked",
+      "firstPartyClientsDescription": "The built-in mobile and desktop apps use fixed client IDs and callbacks; there is nothing to register with the upstream provider.",
       "callback": "Callback",
       "webCallback": "Web redirect URL",
       "nativeCallback": "Native callback",
-      "mobileClientId": "Mobile client ID",
-      "mobileCallback": "Mobile callback",
-      "desktopClientId": "Desktop client ID",
-      "desktopCallback": "Desktop callback",
       "about": "About",
       "aboutDescription": "Agents Anywhere is an open-source remote control surface for AI coding agents.",
       "viewOnGithub": "View on GitHub",
@@ -1865,7 +1857,29 @@
       },
       "passwordReset": "Password reset",
       "passwordResetDescription": "Let users reset a forgotten password with an email verification code.",
-      "passwordResetNeedsEmail": "Turn on email first. Password reset sends a verification code by email."
+      "passwordResetNeedsEmail": "Turn on email first. Password reset sends a verification code by email.",
+      "sections": {
+        "general": {
+          "title": "General",
+          "description": "Who can create accounts and how they sign in."
+        },
+        "auth": {
+          "title": "Authentication",
+          "description": "The upstream OAuth provider and the callbacks built-in clients use."
+        },
+        "email": {
+          "title": "Email",
+          "description": "Outgoing mail and email verification codes."
+        },
+        "info": {
+          "title": "About this server",
+          "description": "Version, runtime status and project links."
+        }
+      },
+      "webCallbackHint": "Register this callback URL when creating the app at the upstream provider.",
+      "mobileClient": "Mobile app",
+      "desktopClient": "Desktop app",
+      "callbackUrl": "Callback URL"
     }
   },
   "preview": {
@@ -1919,6 +1933,17 @@
       "retry": "Reload",
       "publishedAt": "Last published: {time}",
       "notPublished": "Not published yet"
+    }
+  },
+  "admin": {
+    "title": "Administration",
+    "groups": {
+      "data": "Data",
+      "management": "Team & announcements",
+      "service": "Service"
+    },
+    "announcements": {
+      "description": "Publish or update the announcement shown to every user."
     }
   }
 }
