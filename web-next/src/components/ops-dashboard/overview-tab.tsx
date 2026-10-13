@@ -29,7 +29,11 @@ export function OverviewTab({ report }: { report: UsageReportResponse }) {
           value={formatNumber(summary.messages)}
           helper={perUser === null ? null : t("metrics.messagesPerActiveUserHelper", { value: perUser.toFixed(1) })}
         />
-        <StatTile label={t("metrics.sessions")} value={formatNumber(summary.sessions)} />
+        <StatTile
+          label={t("metrics.activeSessions")}
+          value={formatNumber(summary.sessions)}
+          helper={summary.sessionsReadOnly > 0 ? t("metrics.readOnlySessionsHelper", { count: formatNumber(summary.sessionsReadOnly) }) : null}
+        />
         <StatTile
           label={t("metrics.turns")}
           value={formatNumber(summary.turns)}
@@ -62,7 +66,7 @@ export function OverviewTab({ report }: { report: UsageReportResponse }) {
             data={report.daily}
             series={[
               { key: "messages", label: t("series.messages"), color: SERIES_COLORS[0] },
-              { key: "sessions", label: t("series.sessions"), color: SERIES_COLORS[1] },
+              { key: "sessions", label: t("series.activeSessions"), color: SERIES_COLORS[1] },
               { key: "turns", label: t("series.turns"), color: SERIES_COLORS[2] },
             ]}
           />

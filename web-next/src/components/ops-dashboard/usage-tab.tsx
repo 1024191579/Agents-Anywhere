@@ -23,9 +23,15 @@ export function UsageTab({ report }: { report: UsageReportResponse }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <StatGrid columns={4}>
+      <StatGrid columns={6}>
         <StatTile label={t("metrics.messages")} value={formatNumber(summary.messages)} />
-        <StatTile label={t("metrics.sessions")} value={formatNumber(summary.sessions)} />
+        <StatTile label={t("metrics.activeSessions")} value={formatNumber(summary.sessions)} />
+        <StatTile
+          label={t("metrics.readOnlySessions")}
+          value={formatNumber(summary.sessionsReadOnly)}
+          helper={t("metrics.sessionsViewedHelper", { count: formatNumber(summary.sessionsViewed) })}
+        />
+        <StatTile label={t("metrics.sessionViews")} value={formatNumber(summary.sessionViews)} />
         <StatTile label={t("metrics.turns")} value={formatNumber(summary.turns)} />
         <StatTile label={t("metrics.messagesPerActiveUser")} value={perUser} />
       </StatGrid>
@@ -37,6 +43,16 @@ export function UsageTab({ report }: { report: UsageReportResponse }) {
             series={[{ key: "messages", label: t("series.messages"), color: SERIES_COLORS[0] }]}
           />
         </ChartCard>
+        <ChartCard title={t("charts.sessionsDaily")} hint={t("charts.sessionsDailyHint")}>
+          <BarsChart
+            data={report.daily}
+            stacked
+            series={[
+              { key: "sessions", label: t("series.activeSessions"), color: SERIES_COLORS[0] },
+              { key: "sessionsReadOnly", label: t("series.readOnlySessions"), color: SERIES_COLORS[1] },
+            ]}
+          />
+        </ChartCard>
         <ChartCard title={t("charts.hourOfDay")} hint={t("charts.hourOfDayHint", { timezone: report.range.timezone })}>
           <BarsChart
             data={hours}
@@ -45,21 +61,19 @@ export function UsageTab({ report }: { report: UsageReportResponse }) {
             series={[{ key: "messages", label: t("series.messages"), color: SERIES_COLORS[0] }]}
           />
         </ChartCard>
+        <ChartCard title={t("charts.runtimeMessages")}>
+          {runtimeBars.length === 0 ? (
+            <EmptyNote className="h-64">{t("runtimes.empty")}</EmptyNote>
+          ) : (
+            <BarsChart
+              data={runtimeBars}
+              xKey="runtime"
+              tickFormatter={(value) => String(value)}
+              series={[{ key: "messages", label: t("series.messages"), color: SERIES_COLORS[0] }]}
+            />
+          )}
+        </ChartCard>
       </div>
-
-      <ChartCard title={t("charts.runtimeMessages")}>
-        {runtimeBars.length === 0 ? (
-          <EmptyNote>{t("runtimes.empty")}</EmptyNote>
-        ) : (
-          <BarsChart
-            data={runtimeBars}
-            xKey="runtime"
-            tickFormatter={(value) => String(value)}
-            series={[{ key: "messages", label: t("series.messages"), color: SERIES_COLORS[0] }]}
-            className="h-56"
-          />
-        )}
-      </ChartCard>
 
       <ChartCard title={t("runtimes.title")} hint={t("runtimes.hint")}>
         {report.runtimes.length === 0 ? (
