@@ -179,7 +179,9 @@ final class V2SessionModel: Identifiable {
             try await upload?(pending)
             guard isValid, !Task.isCancelled else { throw CancellationError() }
             attachmentPreviews.remember(pending.attachments, clientID: pending.id)
-            await repository.flushCache()
+            // The staged bubble must be durable before the request leaves, but
+            // only this session's archive needs writing, not every cached one.
+            await repository.flushCache(sessionID: id)
             guard isValid, !Task.isCancelled else { throw CancellationError() }
             didSubmit = true
             _ = try await repository.send(sessionId: id, content: content, attachmentIDs: pending.attachmentIDs, clientMessageID: pending.id)
@@ -272,7 +274,7 @@ final class V2SessionModel: Identifiable {
         draft = pending.content; composer.attachments = pending.attachments; draftAttachmentIDs = pending.attachmentIDs
         pending.didRestoreDraft = true
         composer.isFocused = true
-        repository?.draftDidChange()
+        repository?.draftDidChange(sessionID: id)
         return true
     }
 

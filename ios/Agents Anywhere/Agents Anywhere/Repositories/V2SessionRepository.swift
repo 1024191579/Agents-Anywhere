@@ -123,19 +123,26 @@ final class V2SessionRepository {
         emit(entry)
     }
 
-    func flushCache() async {
-        persistenceTask?.cancel(); persistenceTask = nil
+    /// Writes only sessions whose durable state changed since their last save.
+    /// Passing a session ID flushes just that session, e.g. before a send.
+    func flushCache(sessionID: V2SessionID? = nil) async {
+        if sessionID == nil { persistenceTask?.cancel(); persistenceTask = nil }
         guard let localStore else { return }
-        let values = entries.values.sorted { $0.lastAccess < $1.lastAccess }.compactMap { entry in
-            entry.projection.map { V2SessionArchive(data: $0.data, model: entry.model) }
+        let dirty = entries.values.filter { $0.isDirty && (sessionID == nil || $0.id == sessionID) }
+            .sorted { $0.lastAccess < $1.lastAccess }
+        for entry in dirty {
+            guard let projection = entry.projection else { continue }
+            entry.isDirty = false
+            await localStore.saveSession(V2SessionArchive(data: projection.data, model: entry.model))
         }
-        for value in values { await localStore.saveSession(value) }
     }
 
+    /// Streaming emits several times per second; a 2.5 s window coalesces them
+    /// into one archive write per session instead of one per batch.
     private func schedulePersistence() {
         guard localStore != nil, persistenceTask == nil else { return }
         persistenceTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            do { try await Task.sleep(for: .milliseconds(2500)) } catch { return }
             await self?.flushCache()
         }
     }
@@ -264,7 +271,10 @@ final class V2SessionRepository {
         return response
     }
 
-    func draftDidChange() { schedulePersistence() }
+    func draftDidChange(sessionID: V2SessionID) {
+        entries[sessionID]?.isDirty = true
+        schedulePersistence()
+    }
 
     func localWorkDidChange(sessionID: V2SessionID) {
         if let entry = entries[sessionID] { emit(entry) }
@@ -364,7 +374,7 @@ final class V2SessionRepository {
 
     func suspend() {
         suspended = true
-        for entry in entries.values { stop(entry); emit(entry) }
+        for entry in entries.values { stop(entry); emit(entry, persist: false) }
     }
 
     func resume() {
@@ -387,7 +397,7 @@ final class V2SessionRepository {
             } else if wasOffline {
                 start(entry)
             }
-            emit(entry)
+            emit(entry, persist: false)
         }
     }
 
@@ -452,7 +462,7 @@ final class V2SessionRepository {
             while self.isCurrent(entry), entry.connectionID == connectionID, !Task.isCancelled {
                 do {
                     entry.connection = attempt == 0 ? .connecting : .reconnecting
-                    self.emit(entry)
+                    self.emit(entry, persist: false)
                     _ = try await self.load(sessionId: entry.id)
                     if entry.needsSnapshot {
                         _ = try await self.hydrate(entry)
@@ -469,7 +479,7 @@ final class V2SessionRepository {
                             guard entry.connectionID == connectionID else { return }
                             entry.connection = .connected
                             attempt = 0
-                            self.emit(entry)
+                            self.emit(entry, persist: false)
                         } else {
                             try await self.receive(event, entry: entry)
                         }
@@ -483,11 +493,11 @@ final class V2SessionRepository {
                     entry.error = failure
                     guard failure.permitsAutomaticReconnect else {
                         entry.connection = .failed(failure.message)
-                        self.emit(entry)
+                        self.emit(entry, persist: false)
                         return
                     }
                     entry.connection = .reconnecting
-                    self.emit(entry)
+                    self.emit(entry, persist: false)
                     attempt += 1
                     do { try await self.sleep(.seconds(min(1 << min(attempt - 1, 4), 15))) }
                     catch { return }
@@ -592,11 +602,16 @@ final class V2SessionRepository {
         V2SessionObservation(sessionId: entry.id, data: entry.projection?.data, connection: entry.connection, error: entry.error)
     }
 
-    private func emit(_ entry: Entry) {
+    /// `persist` marks durable changes (timeline, metadata, cursor, local work).
+    /// Connection and connectivity transitions republish without an archive write.
+    private func emit(_ entry: Entry, persist: Bool = true) {
         guard isCurrent(entry) else { return }
         entry.model.update(observation(entry), network: network)
         for observer in entry.observers.values { observer.yield(observation(entry)) }
-        schedulePersistence()
+        if persist, entry.projection != nil {
+            entry.isDirty = true
+            schedulePersistence()
+        }
     }
 
     private func invalidateCatalogs(_ entry: Entry) {
@@ -617,7 +632,7 @@ final class V2SessionRepository {
         entry.connection = .inactive
         entry.projection?.markStale()
         invalidateCatalogs(entry)
-        emit(entry)
+        emit(entry, persist: false)
     }
 
     private func dispose(_ entry: Entry) {
@@ -648,6 +663,7 @@ private final class Entry {
     let model: V2SessionModel
     var needsSnapshot = false
     var hasReadLocal = false
+    var isDirty = false
     var localReadTask: Task<V2SessionArchive?, Never>?
     var projection: V2SessionProjection?
     var connection = V2SessionConnectionState.inactive
