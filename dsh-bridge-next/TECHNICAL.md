@@ -51,6 +51,8 @@ RPC 解析、执行、响应大小、取消和超时错误按请求返回，不�
 
 原生历史读取失败只影响对应会话：桥接日志显示会话 ID、`read_failed` 和官方读取错误，其他会话继续同步；AA 已有历史不会被空快照覆盖。修复 DSH 原生历史后可刷新该会话重试，插件不会自行修改原始会话文件。
 
+历史快照和实时增量在计算内容哈希前，将时间线内容中的孤立 UTF-16 代理字符替换为 `�`，避免 Connector 的 UTF-8 编码失败阻塞初始同步。正常中文、完整 emoji、内容哈希和已成功提交的检查点保持兼容；原始事件、会话文件和流式拼接缓冲区不做修改。
+
 ## 本地构建与安装
 
 需要 Node.js `^22.19.0 || >=24`、Corepack，插件通过 npm 依赖 `@dataiku/uv` 提供 uv，运行 Connector 时按需准备 Python 3.12+。开发 Python 子项目时仍可使用本机 uv。项目使用 Yarn；DSH 安装命令内部使用其自己的包管理器。
@@ -170,6 +172,8 @@ Bridge 的独占锁决定端点文件的写入权。获得锁后会重建残留�
 插件先保存私有绑定，再通过 RPC 启动 Python Connector。Python 核验已有 PID 确实对应原来的 Connector 进程，接受启动时追加缺失 ID；冲突返回 `-32009 / connector_already_running`。插件展示错误并保留绑定供重试，关闭自己被拒绝的子进程；不会因冲突重复注册。正常退出后由 Python 清除自己的运行记录，异常退出后根据 PID 和进程身份判断残留记录；仅停止后端连接不会释放仍存活的 RPC 进程占用。
 
 默认插件数据统一放在 `~/.agents-anywhere/dsh-bridge-next/`；插件启动的 Connector 使用其 `connector/` 子目录，实例检查点和 KV 继续按 `<connectorId>/<runtimeId>/` 隔离。首次启动在读取账号和启动 Connector 前，从旧 `~/.agentsanywhere/dsh-bridge-next/` 复制全部持久数据，保留原文件；新目录已有文件优先。复制使用新旧目录的管理锁，旧插件仍运行时会报告冲突。复制失败会阻止管理器启动，修复后可重试。成功后的 `.legacy-state-migrated.json` 防止退出登录或重置后重新导入旧数据，请勿删除该记录。自动生成的 `connector-venv` 不复制，由 uv 在新位置重建；Connector 配置中指向旧根目录的状态路径随迁移更新。显式 `stateRoot` 不自动迁移，继续使用配置的位置。
+
+本机管理锁（`acquireManagerLock`）不再从目录路径哈希出固定端口：持有者监听一个由操作系统分配的回环端口，把 `{port, pid, token}` 写进目录下的 `.manager-lock.json`；竞争者连接该端口、要求对方答出记录里的 token，答得出就是「另一个插件实例正在管理本机设备」。端口不落在任何预设范围，Windows 的动态端口保留段不会再把锁拒绝成「权限不足」；进程被强杀后端口由系统释放，探测失败的记录会被接管。持有者每 5 秒重读自己的记录，被替换时触发 `onCompromised`。
 
 运行检测每次重新读取安装记录，并按可执行文件路径（开发版同时匹配启动参数）查询本机进程；过滤 Electron 辅助进程。已安装但未运行或可执行文件已不存在时保留历史 ID 并允许插件流程；记录损坏或进程查询失败时报告错误。Host 兼容读取旧 `.agentsanywhere/machine.json` 和 `desktop/install.json`，迁移由 Python 在成功写入时完成。
 
