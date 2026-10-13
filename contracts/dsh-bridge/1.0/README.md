@@ -26,6 +26,7 @@ canonical platform session IDs directly. This retains the existing hash algorith
 Feature flags add `readOnly` and `snapshotPagination`; these are optional 1.x fields.
 
 The canonical Timeline schema already defines `type/status/content/source/contentHash`.
+Strings must be well-formed UTF-16 by the time `contentHash` is computed: plugins (2.1.0+) replace lone surrogates with U+FFFD before hashing. The Connector hashes a lone surrogate the way `JSON.stringify` writes it (`\udXXX`), so items from older plugins still verify, and replaces it before forwarding to the Server.
 Legacy native `payload` envelopes are not part of that schema and are no longer
 projected by Python. The plugin is the sole native-log projection owner.
 
