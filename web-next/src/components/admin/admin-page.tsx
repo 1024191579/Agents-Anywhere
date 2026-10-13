@@ -6,7 +6,7 @@ import { OpsDashboardPage } from "@/components/ops-dashboard/ops-dashboard-page"
 import { ServicePage } from "@/components/pages/service-page"
 import { TeamPage } from "@/components/pages/team-page"
 import { useWorkspace } from "@/components/workspace-context"
-import { isAdminDataSection } from "@/features/admin/navigation"
+import { isAdminDataSection, isAdminServiceSection } from "@/features/admin/navigation"
 
 /** Renders the administration section named by the route; admins only. */
 export function AdminPage() {
@@ -14,7 +14,7 @@ export function AdminPage() {
   const { adminSection } = useWorkspace()
   if (me?.role !== "admin") return null
   if (isAdminDataSection(adminSection)) return <OpsDashboardPage tab={adminSection} />
+  if (isAdminServiceSection(adminSection)) return <ServicePage section={adminSection} />
   if (adminSection === "team") return <TeamPage />
-  if (adminSection === "announcements") return <AnnouncementsPage />
-  return <ServicePage />
+  return <AnnouncementsPage />
 }

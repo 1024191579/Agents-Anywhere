@@ -17,7 +17,7 @@ export function OverviewTab({ report }: { report: UsageReportResponse }) {
   const perUser = summary.activeUsers > 0 ? summary.messages / summary.activeUsers : null
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <StatGrid>
         <StatTile
           label={t("metrics.activeUsers")}
@@ -47,7 +47,7 @@ export function OverviewTab({ report }: { report: UsageReportResponse }) {
         />
       </StatGrid>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <ChartCard title={t("charts.userTrend")}>
           <TrendLineChart
             data={report.daily}

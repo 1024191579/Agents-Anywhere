@@ -66,7 +66,7 @@ async function render(t, hash, role = 'admin') {
 }
 
 test('legacy administration routes open the matching section without loading the workspace', async (t) => {
-  for (const [hash, section] of [['#/dashboard', 'overview'], ['#/team', 'team'], ['#/service', 'service']]) {
+  for (const [hash, section] of [['#/dashboard', 'overview'], ['#/team', 'team'], ['#/service', 'service-general']]) {
     const view = await render(t, hash)
     assert.equal(view.state.page, 'admin', hash)
     assert.equal(view.state.adminSection, section, hash)

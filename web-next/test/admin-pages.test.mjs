@@ -85,13 +85,28 @@ test('the announcement page edits the publication without reading service settin
   assert.equal(service.mock.callCount(), 0)
 })
 
-test('the service page no longer carries the announcement card', async (t) => {
+test('service settings are split into pages and no page carries the announcement card', async (t) => {
   t.mock.method(authApi, 'getSettings', async () => settings)
   t.mock.method(authApi, 'getServiceInfo', async () => serviceInfo)
+  const update = t.mock.method(authApi, 'updateSettings', async (_token, patch) => ({ ...settings, ...patch }))
   const announcement = t.mock.method(announcementsApi, 'settings', async () => { throw new Error('Announcements have their own page') })
-  const container = await render(t, h(AdminPage), { section: 'service' })
-  assert.equal(container.querySelector('h1').textContent, '服务')
-  assert.match(container.textContent, /postgresql/)
+
+  const general = await render(t, h(AdminPage), { section: 'service-general' })
+  assert.equal(general.querySelector('h1').textContent, '常规')
+  assert.ok(general.querySelector('[role="switch"]'), 'the access switches live on the general page')
+  assert.doesNotMatch(general.textContent, /postgresql/)
+  await act(async () => general.querySelector('[role="switch"]').click())
+  assert.deepEqual(update.mock.calls[0].arguments[1], { registrationOpen: false })
+
+  const info = await render(t, h(AdminPage), { section: 'service-info' })
+  assert.equal(info.querySelector('h1').textContent, '服务信息')
+  assert.match(info.textContent, /postgresql/)
+  assert.equal(info.querySelector('[role="switch"]'), null)
+
+  const auth = await render(t, h(AdminPage), { section: 'service-auth' })
+  assert.equal(auth.querySelector('h1').textContent, '身份认证')
+  assert.match(auth.textContent, /agents-anywhere-desktop/)
+  assert.match(auth.textContent, /\/api\/v2\/auth\/oauth\/callback/, 'the web callback lives under the API namespace')
   assert.equal(announcement.mock.callCount(), 0)
 })
 
@@ -110,9 +125,11 @@ test('usage board sections come from the route and keep the board header', async
 test('the administration sidebar lists both groups and navigates by section', async (t) => {
   const container = await render(t, h(AdminSidebar), { section: 'overview', sidebar: true })
   assert.match(container.textContent, /数据/)
-  assert.match(container.textContent, /管理/)
+  assert.match(container.textContent, /团队与公告/)
+  assert.match(container.textContent, /服务/)
   const items = [...container.querySelectorAll('[data-sidebar="menu-button"]')].map((button) => button.textContent.trim())
-  assert.deepEqual(items, ['返回主页', '概览', '用户', '使用量', '设备与 Runtime', '运行质量', '团队', '公告', '服务'])
+  assert.deepEqual(items, ['返回主页', '概览', '用户', '使用量', '设备与 Runtime', '运行质量', '团队', '公告', '常规', '身份认证', '邮件', '服务信息'])
+  assert.match(container.textContent, /服务/)
   assert.equal(container.querySelector('[aria-current="page"]').textContent.trim(), '概览')
   await act(async () => buttonNamed(container, '团队').click())
   assert.deepEqual(globalThis.adminWorkspace.navigate.mock.calls.at(-1).arguments, ['admin', 'team'])

@@ -51,7 +51,7 @@ test("administration routes are app routes that keep the login session", async (
   assert.equal(current().screen, "app")
   for (const hash of [
     "#/admin/overview", "#/admin/users", "#/admin/usage", "#/admin/devices", "#/admin/quality",
-    "#/admin/team", "#/admin/announcements", "#/admin/service", "#/admin",
+    "#/admin/team", "#/admin/announcements", "#/admin/service-general", "#/admin/service-auth", "#/admin",
     "#/dashboard", "#/team", "#/service", "#/settings/account", "#/",
   ]) {
     await navigate(hash)

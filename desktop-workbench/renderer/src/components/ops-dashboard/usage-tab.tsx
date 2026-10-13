@@ -22,15 +22,15 @@ export function UsageTab({ report }: { report: UsageReportResponse }) {
     .map((row) => ({ runtime: row.displayName, messages: row.messages }))
 
   return (
-    <div className="flex flex-col gap-4">
-      <StatGrid className="xl:grid-cols-4 2xl:grid-cols-4">
+    <div className="flex flex-col gap-6">
+      <StatGrid columns={4}>
         <StatTile label={t("metrics.messages")} value={formatNumber(summary.messages)} />
         <StatTile label={t("metrics.sessions")} value={formatNumber(summary.sessions)} />
         <StatTile label={t("metrics.turns")} value={formatNumber(summary.turns)} />
         <StatTile label={t("metrics.messagesPerActiveUser")} value={perUser} />
       </StatGrid>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <ChartCard title={t("charts.messagesDaily")}>
           <BarsChart
             data={report.daily}

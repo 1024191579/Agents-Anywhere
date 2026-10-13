@@ -44,6 +44,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { authApi } from "@/features/auth/api"
+import { API_NAMESPACE } from "@/lib/api/client"
 import type {
   InstanceSettings,
   OAuthProviderConfig,
@@ -52,6 +53,7 @@ import type {
 } from "@/features/auth/types"
 import { cn } from "@/lib/utils"
 import { copyText } from "@/lib/clipboard"
+import { servicePageKey, type AdminServiceSection } from "@/features/admin/navigation"
 
 type OAuthTemplateKey = "custom" | "github" | "gitlab" | "google"
 
@@ -96,7 +98,8 @@ function browserPublicUrl(fallback: string): string {
 }
 
 function webOAuthRedirectUrl(publicUrl: string): string {
-  return `${publicUrl.replace(/\/$/, "")}/auth/oauth/callback`
+  // The Server mounts the upstream OAuth callback under the API namespace.
+  return `${publicUrl.replace(/\/$/, "")}${API_NAMESPACE}/auth/oauth/callback`
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -196,7 +199,8 @@ const oauthTemplates: Record<OAuthTemplateKey, OAuthTemplate> = {
   },
 }
 
-export function ServicePage() {
+export function ServicePage({ section }: { section: AdminServiceSection }) {
+  const page = servicePageKey(section)
   const { session, me } = useAuth()
   const t = useTranslations("pages.service")
   const tCommon = useTranslations("common")
@@ -344,77 +348,82 @@ export function ServicePage() {
   return (
     <ScrollArea className="@container/page h-full w-full bg-background">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 pb-16 pt-14 @min-[68rem]/page:pt-8">
-        <PageHeader title={t("title")} description={t("description")}>
+        <PageHeader title={t(`sections.${page}.title`)} description={t(`sections.${page}.description`)}>
           <Button type="button" variant="outline" onClick={() => load()} disabled={loading}>
             <RefreshCw data-icon="inline-start" />
             {t("refresh")}
           </Button>
         </PageHeader>
 
-        <ServerCard
-          info={serviceInfo}
-          publicUrl={publicUrl}
-          copied={copied}
-          onCopy={copy}
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("access")}</CardTitle>
-            <CardDescription>{t("accessDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup>
-              <SettingSwitchField
-                label={t("openRegistration")}
-                description={t("openRegistrationDescription")}
-                checked={settings.registrationOpen}
-                disabled={!isAdmin || togglePending === "registrationOpen"}
-                pending={togglePending === "registrationOpen"}
-                onCheckedChange={(value) => void handleSettingToggle("registrationOpen", value)}
-              />
-              <SettingSwitchField
-                label={t("oauthRegistration")}
-                description={t("oauthRegistrationDescription")}
-                checked={settings.oauthRegistrationOpen}
-                disabled={!isAdmin || togglePending === "oauthRegistrationOpen"}
-                pending={togglePending === "oauthRegistrationOpen"}
-                onCheckedChange={(value) => void handleSettingToggle("oauthRegistrationOpen", value)}
-              />
-              <SettingSwitchField
-                label={t("passwordReset")}
-                description={settings.email.enabled ? t("passwordResetDescription") : t("passwordResetNeedsEmail")}
-                checked={settings.passwordResetEnabled === true}
-                disabled={!isAdmin || togglePending === "passwordResetEnabled"}
-                pending={togglePending === "passwordResetEnabled"}
-                onCheckedChange={(value) => void handleSettingToggle("passwordResetEnabled", value)}
-              />
-            </FieldGroup>
-          </CardContent>
-        </Card>
-
-        <ServiceEmailCard settings={settings.email} token={session?.accessToken ?? ""} isAdmin={isAdmin} onSaved={setSettings} />
-
-        <OAuthProviderCard
-          draft={oauthDraft}
-          isExisting={Boolean(settings.oauth)}
-          isAdmin={isAdmin}
-          saving={oauthSaving}
-          template={oauthTemplate}
-          baseUrl={oauthBaseUrl}
-          onDraftChange={updateOAuthDraft}
-          onTemplateChange={applyOAuthTemplate}
-          onBaseUrlChange={updateOAuthBaseUrl}
-          onReset={() => {
-            setOauthDraft(oauthDraftFromConfig(settings.oauth))
-            setOauthTemplate("custom")
-            setOauthBaseUrl("")
-          }}
-          onSave={() => void saveOAuthProvider()}
-        />
-
-        <FirstPartyClientsCard publicUrl={publicUrl} copied={copied} onCopy={copy} />
-        <AboutCard />
+        {page === "general" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("access")}</CardTitle>
+              <CardDescription>{t("accessDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <SettingSwitchField
+                  label={t("openRegistration")}
+                  description={t("openRegistrationDescription")}
+                  checked={settings.registrationOpen}
+                  disabled={!isAdmin || togglePending === "registrationOpen"}
+                  pending={togglePending === "registrationOpen"}
+                  onCheckedChange={(value) => void handleSettingToggle("registrationOpen", value)}
+                />
+                <SettingSwitchField
+                  label={t("oauthRegistration")}
+                  description={t("oauthRegistrationDescription")}
+                  checked={settings.oauthRegistrationOpen}
+                  disabled={!isAdmin || togglePending === "oauthRegistrationOpen"}
+                  pending={togglePending === "oauthRegistrationOpen"}
+                  onCheckedChange={(value) => void handleSettingToggle("oauthRegistrationOpen", value)}
+                />
+                <SettingSwitchField
+                  label={t("passwordReset")}
+                  description={settings.email.enabled ? t("passwordResetDescription") : t("passwordResetNeedsEmail")}
+                  checked={settings.passwordResetEnabled === true}
+                  disabled={!isAdmin || togglePending === "passwordResetEnabled"}
+                  pending={togglePending === "passwordResetEnabled"}
+                  onCheckedChange={(value) => void handleSettingToggle("passwordResetEnabled", value)}
+                />
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        ) : page === "auth" ? (
+          <>
+            <OAuthProviderCard
+              draft={oauthDraft}
+              isExisting={Boolean(settings.oauth)}
+              isAdmin={isAdmin}
+              saving={oauthSaving}
+              template={oauthTemplate}
+              baseUrl={oauthBaseUrl}
+              onDraftChange={updateOAuthDraft}
+              onTemplateChange={applyOAuthTemplate}
+              onBaseUrlChange={updateOAuthBaseUrl}
+              onReset={() => {
+                setOauthDraft(oauthDraftFromConfig(settings.oauth))
+                setOauthTemplate("custom")
+                setOauthBaseUrl("")
+              }}
+              onSave={() => void saveOAuthProvider()}
+            />
+            <FirstPartyClientsCard publicUrl={publicUrl} copied={copied} onCopy={copy} />
+          </>
+        ) : page === "email" ? (
+          <ServiceEmailCard settings={settings.email} token={session?.accessToken ?? ""} isAdmin={isAdmin} onSaved={setSettings} />
+        ) : (
+          <>
+            <ServerCard
+              info={serviceInfo}
+              publicUrl={publicUrl}
+              copied={copied}
+              onCopy={copy}
+            />
+            <AboutCard />
+          </>
+        )}
       </div>
     </ScrollArea>
   )

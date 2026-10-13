@@ -1,11 +1,28 @@
 "use client"
 
-import { Activity, Gauge, Laptop, LineChart, Megaphone, Server, UserCog, Users } from "lucide-react"
+import {
+  Activity,
+  Gauge,
+  Info,
+  KeyRound,
+  Laptop,
+  LineChart,
+  Mail,
+  Megaphone,
+  SlidersHorizontal,
+  UserCog,
+  Users,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { WorkspaceSectionSidebar } from "@/components/workspace-section-sidebar"
 import { useWorkspace } from "@/components/workspace-context"
-import { adminNavigation, type AdminSection } from "@/features/admin/navigation"
+import {
+  adminNavigation,
+  isAdminServiceSection,
+  servicePageKey,
+  type AdminSection,
+} from "@/features/admin/navigation"
 
 const ICONS = {
   overview: LineChart,
@@ -15,7 +32,10 @@ const ICONS = {
   quality: Activity,
   team: UserCog,
   announcements: Megaphone,
-  service: Server,
+  "service-general": SlidersHorizontal,
+  "service-auth": KeyRound,
+  "service-email": Mail,
+  "service-info": Info,
 } satisfies Record<AdminSection, typeof LineChart>
 
 export function AdminSidebar({ contained = false }: { contained?: boolean }) {
@@ -27,16 +47,10 @@ export function AdminSidebar({ contained = false }: { contained?: boolean }) {
   const { adminSection, navigate } = useWorkspace()
 
   const label = (section: AdminSection): string => {
-    switch (section) {
-      case "team":
-        return tTeam("title")
-      case "announcements":
-        return tAnnouncement("title")
-      case "service":
-        return tService("title")
-      default:
-        return tTabs(section)
-    }
+    if (section === "team") return tTeam("title")
+    if (section === "announcements") return tAnnouncement("title")
+    if (isAdminServiceSection(section)) return tService(`sections.${servicePageKey(section)}.title`)
+    return tTabs(section)
   }
 
   return (
