@@ -23,13 +23,16 @@ final class V2SessionRuntimeModel {
         return capability.supported && capability.available && capability.allowed
     }
 
-    func update(_ data: V2SessionData?, connected: Bool) {
+    /// Returns whether the notice list changed, so forms are rebuilt only then.
+    @discardableResult func update(_ data: V2SessionData?, connected: Bool) -> Bool {
         if state != data?.state { state = data?.state }
         if capabilities != data?.capabilities { capabilities = data?.capabilities }
         let notices = data?.notices ?? []
-        if self.notices != notices { self.notices = notices }
+        let noticesChanged = self.notices != notices
+        if noticesChanged { self.notices = notices }
         let fresh = connected && data?.liveStateIsFresh == true
         if isFresh != fresh { isFresh = fresh }
+        return noticesChanged
     }
 }
 
@@ -214,8 +217,7 @@ final class V2SessionModel: Identifiable {
         if connection != observation.connection { connection = observation.connection }
         if self.network != network { self.network = network }
         if failure != observation.error { failure = observation.error }
-        runtime.update(data, connected: connection == .connected)
-        notices.update(runtime.notices, sessionID: id)
+        if runtime.update(data, connected: connection == .connected) { notices.update(runtime.notices, sessionID: id) }
         if hasOlderItems != (data?.hasOlderItems ?? false) { hasOlderItems = data?.hasOlderItems ?? false }
         if hasNewerItems != (data?.hasNewerItems ?? false) { hasNewerItems = data?.hasNewerItems ?? false }
         // A streamed token updates one existing row. Keep the id index across

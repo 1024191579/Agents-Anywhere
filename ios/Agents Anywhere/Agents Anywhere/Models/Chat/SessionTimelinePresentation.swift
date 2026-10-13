@@ -11,6 +11,7 @@ final class ChatTimelineRowModel: Identifiable {
     private(set) var layoutGeneration = 0
     @ObservationIgnored private var settlesAt: TimeInterval = 0
     @ObservationIgnored private var hasFlushed = false
+    @ObservationIgnored private var entryCache: (cwd: String?, entry: TimelineEntryPresentation)?
     /// False while a streaming batch withholds the final glyph of the received text.
     @ObservationIgnored private var displaysFullText = false
 
@@ -41,11 +42,20 @@ final class ChatTimelineRowModel: Identifiable {
             if isRevealing { settlesAt = now + ReplyPresentation.revealSeconds + ReplyPresentation.drawSlack }
             text = displayed
         }
-        if value != next { value = next }
+        if value != next { value = next; entryCache = nil }
         let nextStructure = TimelineRowStructure(next)
         if structure != nextStructure { structure = nextStructure }
         if !animate || now >= settlesAt { isRevealing = false }
         return started
+    }
+
+    /// Tool/marker rows parse their payload once per item version instead of
+    /// on every body evaluation of the row and its expanded details.
+    func entry(cwd: String?) -> TimelineEntryPresentation {
+        if let entryCache, entryCache.cwd == cwd { return entryCache.entry }
+        let entry = TimelineEntryPresentation(item: value, cwd: cwd)
+        entryCache = (cwd, entry)
+        return entry
     }
 
     /// The drawing clock follows the last revealed batch, not the item's

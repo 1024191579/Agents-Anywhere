@@ -43,6 +43,9 @@ struct StreamingGlyphReveal: ViewModifier {
     @Environment(\.streamingRevealDeadline) private var deadline
     @State private var ledger: GlyphRevealLedger
     @State private var stoppedDeadline: Date?
+    /// A tool wait or thinking pause flips `isStreaming` off and on again. The
+    /// block stays on the renderer branch so each flip does not rebuild its Text.
+    @State private var hasStreamed = false
     private let revealedPhraseCount: Int?
 
     init(ledger: GlyphRevealLedger = GlyphRevealLedger(), revealedPhraseCount: Int? = nil) {
@@ -54,9 +57,9 @@ struct StreamingGlyphReveal: ViewModifier {
         let enabled = isStreaming && !reduceMotion
         // Text arrives in batches, one after the previous reveal ends. Drawing
         // interpolates each batch without reparsing or appending text.
-        if !enabled && revealedPhraseCount == nil {
+        if !enabled && !hasStreamed && revealedPhraseCount == nil {
             // Settled history uses native Text drawing with no clock or glyph walk.
-            content
+            content.onChange(of: enabled) { _, next in if next { hasStreamed = true } }
         } else {
             // Every running clock re-evaluates its text each frame, so an idle
             // block pauses and draws its glyphs settled. 60 fps is enough for a
@@ -66,6 +69,7 @@ struct StreamingGlyphReveal: ViewModifier {
                 content.textRenderer(GlyphRevealRenderer(ledger: ledger, now: timeline.date.timeIntervalSinceReferenceDate,
                     enabled: running, revealedPhraseCount: revealedPhraseCount))
             }
+            .onChange(of: enabled, initial: true) { _, next in if next { hasStreamed = true } }
             .task(id: deadline) {
                 let delay = deadline.timeIntervalSinceNow
                 guard delay > 0, delay < 60 else { return }
