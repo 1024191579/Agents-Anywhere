@@ -393,6 +393,9 @@ export function ServicePage({ section }: { section: AdminServiceSection }) {
         ) : page === "auth" ? (
           <>
             <OAuthProviderCard
+              redirectUrl={webOAuthRedirectUrl(publicUrl)}
+              copied={copied}
+              onCopy={copy}
               draft={oauthDraft}
               isExisting={Boolean(settings.oauth)}
               isAdmin={isAdmin}
@@ -409,7 +412,7 @@ export function ServicePage({ section }: { section: AdminServiceSection }) {
               }}
               onSave={() => void saveOAuthProvider()}
             />
-            <FirstPartyClientsCard publicUrl={publicUrl} copied={copied} onCopy={copy} />
+            <FirstPartyClientsCard copied={copied} onCopy={copy} />
           </>
         ) : page === "email" ? (
           <ServiceEmailCard settings={settings.email} token={session?.accessToken ?? ""} isAdmin={isAdmin} onSaved={setSettings} />
@@ -512,14 +515,34 @@ function ServerCard({
   )
 }
 
+/** A titled run of rows inside a card; groups are divided by the same hairline as rows. */
+function InfoGroup({
+  title,
+  children,
+  last,
+}: {
+  title: string
+  children: React.ReactNode
+  last?: boolean
+}) {
+  return (
+    <div className={cn(!last && "border-b border-border")}>
+      <div className="px-5 pb-1.5 pt-3 text-xs font-medium text-muted-foreground">{title}</div>
+      {children}
+    </div>
+  )
+}
+
 function InfoRow({
   label,
   value,
+  hint,
   action,
   last,
 }: {
   label: string
   value: React.ReactNode
+  hint?: string
   action?: React.ReactNode
   last?: boolean
 }) {
@@ -528,6 +551,7 @@ function InfoRow({
       <div className="w-32 shrink-0 text-sm text-muted-foreground">{label}</div>
       <div className={cn("relative min-w-0 flex-1 text-sm", action && "pr-10")}>
         <div className="no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden whitespace-nowrap">{value}</div>
+        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
         {action ? (
           <div className="absolute inset-y-0 right-0 flex items-center bg-card pl-2 before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-10 before:bg-gradient-to-r before:from-transparent before:to-card">
             {action}
@@ -568,6 +592,9 @@ function SettingSwitchField({
 }
 
 function OAuthProviderCard({
+  redirectUrl,
+  copied,
+  onCopy,
   draft,
   isExisting,
   isAdmin,
@@ -580,6 +607,9 @@ function OAuthProviderCard({
   onReset,
   onSave,
 }: {
+  redirectUrl: string
+  copied: CopyKey | null
+  onCopy: (key: CopyKey, value: string) => void
   draft: OAuthProviderConfigUpdate
   isExisting: boolean
   isAdmin: boolean
@@ -593,6 +623,7 @@ function OAuthProviderCard({
   onSave: () => void
 }) {
   const t = useTranslations("pages.service")
+  const tCommon = useTranslations("common")
   const disabled = !isAdmin || saving
   const showCustomFields = template === "custom"
 
@@ -605,6 +636,21 @@ function OAuthProviderCard({
           <KeyRound />
         </CardAction>
       </CardHeader>
+      {/* The one value the provider's own console asks for, before anything is filled in here. */}
+      <CardContent className="px-0">
+        <InfoRow
+          label={t("webCallback")}
+          value={<code className="code-mono text-sm">{redirectUrl}</code>}
+          hint={t("webCallbackHint")}
+          action={
+            <CopyButton
+              copied={copied === "webCallback"}
+              label={tCommon("copy")}
+              onClick={() => onCopy("webCallback", redirectUrl)}
+            />
+          }
+        />
+      </CardContent>
       <CardContent>
         <FieldGroup>
           <Field orientation="horizontal" data-disabled={disabled}>
@@ -820,17 +866,18 @@ function TextField({
 }
 
 function FirstPartyClientsCard({
-  publicUrl,
   copied,
   onCopy,
 }: {
-  publicUrl: string
   copied: CopyKey | null
   onCopy: (key: CopyKey, value: string) => void
 }) {
   const t = useTranslations("pages.service")
   const tCommon = useTranslations("common")
-  const webCallback = webOAuthRedirectUrl(publicUrl)
+  const clients: { key: "mobile" | "desktop"; title: string; id: string; callback: string }[] = [
+    { key: "mobile", title: t("mobileClient"), id: MOBILE_CLIENT_ID, callback: MOBILE_CALLBACK },
+    { key: "desktop", title: t("desktopClient"), id: DESKTOP_CLIENT_ID, callback: DESKTOP_CALLBACK },
+  ]
 
   return (
     <Card>
@@ -842,66 +889,33 @@ function FirstPartyClientsCard({
         </CardAction>
       </CardHeader>
       <CardContent className="px-0">
-        <InfoRow
-          label={t("clientMode")}
-          value={<span className="rounded-full bg-muted px-2 py-0.5 text-xs">{t("locked")}</span>}
-        />
-        <InfoRow
-          label={t("mobileClientId")}
-          value={<code className="code-mono text-sm">{MOBILE_CLIENT_ID}</code>}
-          action={
-            <CopyButton
-              copied={copied === "mobileClient"}
-              label={tCommon("copy")}
-              onClick={() => onCopy("mobileClient", MOBILE_CLIENT_ID)}
+        {clients.map((client, index) => (
+          <InfoGroup key={client.key} title={client.title} last={index === clients.length - 1}>
+            <InfoRow
+              label={t("clientId")}
+              value={<code className="code-mono text-sm">{client.id}</code>}
+              action={
+                <CopyButton
+                  copied={copied === `${client.key}Client`}
+                  label={tCommon("copy")}
+                  onClick={() => onCopy(`${client.key}Client`, client.id)}
+                />
+              }
             />
-          }
-        />
-        <InfoRow
-          label={t("webCallback")}
-          value={<code className="code-mono text-sm">{webCallback}</code>}
-          action={
-            <CopyButton
-              copied={copied === "webCallback"}
-              label={tCommon("copy")}
-              onClick={() => onCopy("webCallback", webCallback)}
+            <InfoRow
+              label={t("callbackUrl")}
+              value={<code className="code-mono text-sm">{client.callback}</code>}
+              action={
+                <CopyButton
+                  copied={copied === `${client.key}Callback`}
+                  label={tCommon("copy")}
+                  onClick={() => onCopy(`${client.key}Callback`, client.callback)}
+                />
+              }
+              last
             />
-          }
-        />
-        <InfoRow
-          label={t("mobileCallback")}
-          value={<code className="code-mono text-sm">{MOBILE_CALLBACK}</code>}
-          action={
-            <CopyButton
-              copied={copied === "mobileCallback"}
-              label={tCommon("copy")}
-              onClick={() => onCopy("mobileCallback", MOBILE_CALLBACK)}
-            />
-          }
-        />
-        <InfoRow
-          label={t("desktopClientId")}
-          value={<code className="code-mono text-sm">{DESKTOP_CLIENT_ID}</code>}
-          action={
-            <CopyButton
-              copied={copied === "desktopClient"}
-              label={tCommon("copy")}
-              onClick={() => onCopy("desktopClient", DESKTOP_CLIENT_ID)}
-            />
-          }
-        />
-        <InfoRow
-          label={t("desktopCallback")}
-          value={<code className="code-mono text-sm">{DESKTOP_CALLBACK}</code>}
-          action={
-            <CopyButton
-              copied={copied === "desktopCallback"}
-              label={tCommon("copy")}
-              onClick={() => onCopy("desktopCallback", DESKTOP_CALLBACK)}
-            />
-          }
-          last
-        />
+          </InfoGroup>
+        ))}
       </CardContent>
     </Card>
   )

@@ -1828,16 +1828,10 @@
       "saveProvider": "保存提供方",
       "saving": "保存中...",
       "firstPartyClients": "第一方客户端",
-      "firstPartyClientsDescription": "上游 OAuth 提供方请使用 Web 重定向地址。内置原生客户端使用固定的标识和回调地址。",
-      "clientMode": "模式",
-      "locked": "已锁定",
+      "firstPartyClientsDescription": "内置的手机和桌面客户端使用固定的客户端 ID 和回调地址，不需要在上游提供方注册。",
       "callback": "回调地址",
       "webCallback": "Web 重定向地址",
       "nativeCallback": "原生回调地址",
-      "mobileClientId": "手机客户端 ID",
-      "mobileCallback": "手机客户端回调",
-      "desktopClientId": "桌面客户端 ID",
-      "desktopCallback": "桌面客户端回调",
       "about": "关于",
       "aboutDescription": "Agents Anywhere 是面向 AI 编程代理的开源远程控制界面。",
       "viewOnGithub": "在 GitHub 查看",
@@ -1881,7 +1875,11 @@
           "title": "服务信息",
           "description": "版本、运行状态与项目信息。"
         }
-      }
+      },
+      "webCallbackHint": "在上游提供方注册应用时填写这个回调地址。",
+      "mobileClient": "手机客户端",
+      "desktopClient": "桌面客户端",
+      "callbackUrl": "回调地址"
     }
   },
   "preview": {

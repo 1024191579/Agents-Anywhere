@@ -1963,16 +1963,10 @@
       "saveProvider": "Save provider",
       "saving": "Saving...",
       "firstPartyClients": "First-party Clients",
-      "firstPartyClientsDescription": "Use the Web redirect URL for upstream OAuth providers. Built-in native clients use fixed identifiers and callbacks.",
-      "clientMode": "Mode",
-      "locked": "locked",
+      "firstPartyClientsDescription": "The built-in mobile and desktop apps use fixed client IDs and callbacks; there is nothing to register with the upstream provider.",
       "callback": "Callback",
       "webCallback": "Web redirect URL",
       "nativeCallback": "Native callback",
-      "mobileClientId": "Mobile client ID",
-      "mobileCallback": "Mobile callback",
-      "desktopClientId": "Desktop client ID",
-      "desktopCallback": "Desktop callback",
       "about": "About",
       "aboutDescription": "Agents Anywhere is an open-source remote control surface for AI coding agents.",
       "viewOnGithub": "View on GitHub",
@@ -2016,7 +2010,11 @@
           "title": "About this server",
           "description": "Version, runtime status and project links."
         }
-      }
+      },
+      "webCallbackHint": "Register this callback URL when creating the app at the upstream provider.",
+      "mobileClient": "Mobile app",
+      "desktopClient": "Desktop app",
+      "callbackUrl": "Callback URL"
     }
   },
   "preview": {
