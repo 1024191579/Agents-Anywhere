@@ -14,6 +14,7 @@ import { WorkspaceHeaderBackdrop } from "@/components/workspace-header"
 import { SessionToolSidebarsHost } from "@/components/session-tool-sidebar"
 import { SettingsPage } from "@/components/pages/settings-page"
 import { SettingsSidebar } from "@/components/settings/settings-sidebar"
+import { SidebarSwitch } from "@/components/sidebar-switch"
 import { AdminPage } from "@/components/admin/admin-page"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { DevicePage } from "@/components/pages/device-page"
@@ -66,12 +67,31 @@ export function Demo() {
 }
 
 /** The sidebar slot: workspace by default, section navigation on standalone pages. */
+type SidebarKind = "home" | "admin" | "settings"
+
+// Administration and settings sit one level below the session list, so moving
+// into them pushes their sidebar in and returning home pops it off again.
+const SIDEBAR_DEPTH: Record<SidebarKind, number> = { home: 0, admin: 1, settings: 1 }
+
+function renderSidebar(kind: string, contained: boolean) {
+  if (kind === "admin") return <AdminSidebar contained={contained} />
+  if (kind === "settings") return <SettingsSidebar contained={contained} />
+  return <AppSidebar contained={contained} />
+}
+
 function WorkspaceNavigation({ contained = false }: { contained?: boolean }) {
   const { page } = useWorkspace()
   const { me } = useAuth()
-  if (page === "admin" && me?.role === "admin") return <AdminSidebar contained={contained} />
-  if (page === "settings") return <SettingsSidebar contained={contained} />
-  return <AppSidebar contained={contained} />
+  const kind: SidebarKind =
+    page === "admin" && me?.role === "admin" ? "admin" : page === "settings" ? "settings" : "home"
+  // The mobile sidebar is a sheet that closes on navigation; only the docked
+  // sidebar switches in place.
+  if (!contained) return renderSidebar(kind, false)
+  return (
+    <SidebarSwitch id={kind} depth={SIDEBAR_DEPTH[kind]}>
+      {(layer) => renderSidebar(layer, true)}
+    </SidebarSwitch>
+  )
 }
 
 function DashboardShell() {
