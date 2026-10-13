@@ -48,7 +48,7 @@ test('the first sidebar mounts still and a deeper one slides in beside it from t
   assert.equal(entering.id, 'admin'); assert.equal(entering.state, 'current')
   const rail = track(container)
   assert.equal(rail.dataset.state, 'sliding')
-  assert.match(rail.className, /w-\[200%\] transition-transform/)
+  assert.match(rail.className, /w-\[200%\] .*transition-transform/)
   assert.match(rail.className, /ease-\[cubic-bezier/, 'the slide is not linear')
   assert.equal(rail.style.transform, 'translateX(-50%)', 'the track rests one sidebar width to the left')
   assert.ok(layers(container).every(({ className }) => /w-1\/2/.test(className)), 'both sidebars share the track side by side')
@@ -66,6 +66,7 @@ test('going back slides the shallower sidebar in from the left', async (t) => {
   assert.equal(entering.id, 'home'); assert.equal(entering.state, 'current')
   assert.equal(leaving.id, 'admin'); assert.equal(leaving.state, 'leaving')
   assert.equal(track(container).style.transform, 'translateX(0%)', 'the track comes back to rest at the start')
+  assert.equal(track(container).style.transition, '', 'the transition is handed back to the stylesheet after pinning the start')
   // A child's transition ending must not drop the leaving sidebar early.
   await act(async () => transitionEnd(leaving.node))
   assert.equal(layers(container).length, 2)

@@ -72,12 +72,18 @@ export function SidebarSwitch({
     const wasSliding = wasSlidingRef.current
     wasSlidingRef.current = sliding
     if (!track || !sliding || wasSliding) return
-    // Start with the leaving sidebar still in view and let the transition
-    // carry the track to its resting position. A slide reversed midway is
-    // not restarted: React only changes the target and the transition
-    // continues from wherever the track is.
-    track.style.transform = `translateX(${restingShift === 0 ? -50 : 0}%)`
+    // Pin the track where the leaving sidebar is still in view with the
+    // transition switched off: a child measuring itself in its own layout
+    // effect may already have had the browser compute the committed resting
+    // position, and the stray transition that starts from would swallow the
+    // real one. Then hand the resting position to the transition. A slide
+    // reversed midway is not restarted: React only changes the target and
+    // the transition continues from wherever the track is.
+    const start = restingShift === 0 ? -50 : 0
+    track.style.transition = "none"
+    track.style.transform = `translateX(${start}%)`
     void track.getBoundingClientRect()
+    track.style.transition = ""
     track.style.transform = `translateX(${restingShift}%)`
   }, [sliding, restingShift])
 
@@ -96,7 +102,7 @@ export function SidebarSwitch({
         className={cn(
           "flex h-full",
           sliding
-            ? "w-[200%] transition-transform duration-400 ease-[cubic-bezier(0.05,0.7,0.1,1)]"
+            ? "w-[200%] will-change-transform transition-transform duration-400 ease-[cubic-bezier(0.05,0.7,0.1,1)]"
             : "w-full"
         )}
         style={sliding ? { transform: `translateX(${restingShift}%)` } : undefined}
