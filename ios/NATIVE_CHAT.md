@@ -42,7 +42,8 @@ Semantic error and availability colors remain separate from the primary color.
   since goes on screen as the next batch. Text after a pause shows at once, at
   most one batch animates, and layout lands between animations. Static history
   does not keep a clock awake. New glyphs use a 240 ms opacity, blur and
-  vertical reveal. Each batch's glyphs draw as one layer with one blur. A block's
+  vertical reveal; the Settings toggle “Reveal animation” turns that into a
+  plain opacity fade with no blur layer. Each batch's glyphs draw as one layer with one blur. A block's
   drawing clock runs at up to 60 fps and only until its newest glyphs finish;
   blocks compare by a digest hashed on the parse worker, not character by
   character on the main actor. Initial history and recovery snapshots do not
