@@ -54,6 +54,9 @@ Semantic error and availability colors remain separate from the primary color.
   projection in place; `V2SessionModel`, the presentation rows and the timeline
   views compare items by identity fields, so an appended token touches only its
   own row. Tool/marker rows cache their parsed presentation per item version.
+  Streamed Markdown re-parses only the text after the last safe boundary (a
+  blank line outside fences that cannot continue a list); earlier blocks keep
+  their parsed content and identity across batches.
 - Pending user-message removal and authoritative echo insertion happen in the
   same presentation tick. `MarkdownBlockLayout` measures and places each stable
   block with the parent's proposed column width. Its layout-local height cache
