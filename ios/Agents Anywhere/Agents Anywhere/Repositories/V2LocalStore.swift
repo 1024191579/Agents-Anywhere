@@ -13,6 +13,12 @@ actor V2LocalStore {
     init(directory: URL, maximumSessions: Int = 8) { self.directory = directory; self.maximumSessions = maximumSessions }
     func dashboard() -> V2DashboardArchive? { read("dashboard", as: V2DashboardArchive.self) }
     func session(_ id: String) -> V2SessionArchive? { read(sessionKey(id), as: V2SessionArchive.self) }
+    /// Decodes the archived timeline here, off the main actor; a malformed item
+    /// is skipped instead of discarding the whole session.
+    func restoreSession(_ id: String) -> V2SessionRestore? {
+        guard let archive = session(id) else { return nil }
+        return V2SessionRestore(archive: archive, items: archive.items.compactMap { try? V2TimelineItem(json: $0) })
+    }
     func saveDashboard(_ value: V2DashboardArchive) { write(value, key: "dashboard") }
     func saveSession(_ value: V2SessionArchive) {
         guard !removedSessions.contains(value.session.id) else { return }

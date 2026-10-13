@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct ChatShellView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -320,6 +320,6 @@ private struct ChatShellPlaceholderPage: View {
 
 #Preview {
     ChatShellView()
-        .environmentObject(AppState())
+        .environment(AppState())
         .preferredColorScheme(.dark)
 }

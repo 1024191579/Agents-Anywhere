@@ -15,7 +15,7 @@ struct NewSessionView: View, Equatable {
     @State private var showsTarget = false
     @State private var showsWorkspace = false
     @State private var showsFiles = false
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @State private var confirmsRetry = false
     @AppStorage(ProjectSidebarPreferences.sessionListKey) private var showsSessionList = false
     @ScaledMetric(relativeTo: .body) private var bodyLineHeight: CGFloat = 22

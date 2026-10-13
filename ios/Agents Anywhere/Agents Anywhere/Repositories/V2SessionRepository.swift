@@ -111,16 +111,15 @@ final class V2SessionRepository {
         let entry = entry(for: id)
         guard entry.projection == nil, !entry.hasReadLocal else { return }
         if entry.localReadTask == nil {
-            entry.localReadTask = Task { await localStore.session(id) }
+            entry.localReadTask = Task { await localStore.restoreSession(id) }
         }
         let saved = await entry.localReadTask?.value
         guard isCurrent(entry), entry.projection == nil, !entry.hasReadLocal else { return }
         entry.hasReadLocal = true; entry.localReadTask = nil
-        guard let saved, saved.session.id == id,
-              let projection = try? saved.projection(maximumItems: policy.maximumTimelineItems) else { return }
-        entry.projection = projection
-        entry.model.restoreLocal(saved)
-        emit(entry)
+        guard let saved, saved.archive.session.id == id else { return }
+        entry.projection = saved.archive.projection(items: saved.items, maximumItems: policy.maximumTimelineItems)
+        entry.model.restoreLocal(saved.archive)
+        emit(entry, persist: false)
     }
 
     /// Writes only sessions whose durable state changed since their last save.
@@ -664,7 +663,7 @@ private final class Entry {
     var needsSnapshot = false
     var hasReadLocal = false
     var isDirty = false
-    var localReadTask: Task<V2SessionArchive?, Never>?
+    var localReadTask: Task<V2SessionRestore?, Never>?
     var projection: V2SessionProjection?
     var connection = V2SessionConnectionState.inactive
     var error: V2ClientFailure?
