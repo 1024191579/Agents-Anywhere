@@ -4,7 +4,7 @@ import asyncio
 import pickle
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import ExitStack
 from typing import Any
 
@@ -24,6 +24,12 @@ from connector.runtimes.dsh.bridge.models import (
     timeline_item,
 )
 from connector.runtimes.dsh.bridge.models import notice as session_notice
+
+# Consecutive subscription failures back off up to this long between attempts.
+MAX_RETRY_DELAY_SECONDS = 30.0
+
+# Called once when the relay task ends for any reason other than close().
+RelayExitHandler = Callable[["SyncRelay", BaseException | None], None]
 
 _DURABLE_NOTIFICATIONS = {
     "timeline.itemUpsert", "session.meta.upsert", "session.state.updated",
@@ -52,11 +58,20 @@ class SyncRelay:
     Transport page ACKs alone never advance the Connector's persisted state.
     """
 
-    def __init__(self, client: BridgeClient, host: RuntimeHostClient, *, retry_delay: float = 1.0) -> None:
+    def __init__(
+        self,
+        client: BridgeClient,
+        host: RuntimeHostClient,
+        *,
+        retry_delay: float = 1.0,
+        on_exit: RelayExitHandler | None = None,
+    ) -> None:
         self.client, self.host = client, host
         self.queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=2)
         self.stream_id: str | None = None
         self.retry_delay = retry_delay
+        self.on_exit = on_exit
+        self.failures = 0
         self.task: asyncio.Task[None] | None = None
         self.snapshot: dict[str, Any] | None = None
         self.file = None
@@ -70,6 +85,29 @@ class SyncRelay:
 
     def start(self) -> None:
         self.task = asyncio.create_task(self.run(), name="dsh-event-sync")
+        self.task.add_done_callback(self._finished)
+
+    def _finished(self, task: asyncio.Task[None]) -> None:
+        # Whatever ended the loop, the owner gets to decide whether to start a
+        # new relay; a relay must never disappear silently.
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error("DSH event sync stopped unexpectedly ({}): {}", type(error).__name__, error)
+        if self.on_exit is not None:
+            self.on_exit(self, error)
+
+    async def _report_health(self, status: str, phase: dict[str, Any] | None = None) -> None:
+        # Status is best effort: the backend socket may be down while the
+        # bridge is fine, and a failed report must not take the sync with it.
+        try:
+            if phase is None:
+                await self.host.runtime_health_update(status)
+            else:
+                await self.host.runtime_health_update(status, phase=phase)
+        except Exception as error:  # noqa: BLE001 - reporting never interrupts sync
+            logger.debug("DSH sync health report skipped ({})", type(error).__name__)
 
     def accept(self, payload: Mapping[str, Any]) -> None:
         try:
@@ -171,7 +209,7 @@ class SyncRelay:
         kwargs = {"on_progress": self.on_progress} if self.on_progress is not None else {}
         await self.host.publish_runtime_notifications("dsh", notifications, **kwargs)
         if any(n["method"] == "session.inventory.complete" and n["params"].get("complete") is True for n in notifications):
-            await self.host.runtime_health_update("running")
+            await self._report_health("running")
 
     async def store_items(self, items: list[dict[str, Any]]) -> None:
         self.item_bytes += object_bytes(items)
@@ -254,7 +292,7 @@ class SyncRelay:
             kwargs = {"on_progress": self.on_progress} if self.on_progress is not None else {}
             await self.host.publish_runtime_notifications("dsh", [notice], **kwargs)
             if method == "session.inventory.complete" and params.get("complete") is True:
-                await self.host.runtime_health_update("running")
+                await self._report_health("running")
         else:
             raise ValueError(f"Unsupported runtime notification: {method}")
 
@@ -266,14 +304,19 @@ class SyncRelay:
                 except asyncio.CancelledError:
                     raise
                 except Exception as error:  # noqa: BLE001 - isolate and recover a failed feed
-                    logger.warning("DSH event sync interrupted; resubscribing for history calibration ({})", type(error).__name__)
-                    await self.host.runtime_health_update("starting", phase={
+                    self.failures += 1
+                    delay = min(self.retry_delay * 2 ** (self.failures - 1), MAX_RETRY_DELAY_SECONDS)
+                    logger.warning(
+                        "DSH event sync interrupted; resubscribing in {:.1f}s ({}: {})",
+                        delay, type(error).__name__, error,
+                    )
+                    await self._report_health("starting", {
                         "code": "sync_interrupted", "message": "DSH 会话同步中断，正在重试…", "retryable": True,
                     })
                     if not self.client.connected:
                         return
                     self.clear_snapshot()
-                    await asyncio.sleep(self.retry_delay)
+                    await asyncio.sleep(delay)
                     while not self.queue.empty():
                         self.queue.get_nowait()
         finally:
@@ -283,7 +326,7 @@ class SyncRelay:
         # Subscription replaces only this feed. Concurrent RPC requests keep
         # their connection and are never cancelled by an ingest/sync failure.
         try:
-            await self.host.runtime_health_update("starting", phase={
+            await self._report_health("starting", {
                 "code": "syncing", "message": "正在同步 DSH 会话…", "retryable": True,
             })
             subscription = await self.client.request("runtime.sync.subscribe", {"checkpointVersion": 1, "uploadProgressVersion": 1})
@@ -324,6 +367,7 @@ class SyncRelay:
                 await self.client.request("runtime.sync.ack", ack)
                 self.on_progress = None
                 expected += 1
+                self.failures = 0
         finally:
             self.on_progress = None
             self.clear_snapshot()
