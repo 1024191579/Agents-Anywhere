@@ -10,19 +10,18 @@ import time
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from conftest import ApiV2TestClient as TestClient
-from conftest import make_test_client
-
 from agent_server.core.auth import (
     create_signed_token,
     hash_password,
 )
 from agent_server.core.setup_token import SetupToken
 from agent_server.services.oauth import OAuthIdentity, create_pending_token
+from conftest import ApiV2TestClient as TestClient
+from conftest import make_test_client
 
 
 def make_client(tmp_path) -> TestClient:
-    return make_test_client(tmp_path / "test.sqlite3")
+    return make_test_client()
 
 
 # ---------- helpers ----------------------------------------------------------

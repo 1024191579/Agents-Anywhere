@@ -413,6 +413,7 @@ class BackendRpcClient:
         runtime_id: str,
         status: str,
         error: Mapping[str, Any] | None,
+        phase: Mapping[str, Any] | None = None,
     ) -> None:
         payload: dict[str, Any] = {
             "runtime": runtime_type,
@@ -421,6 +422,8 @@ class BackendRpcClient:
         }
         if error is not None:
             payload["error"] = error
+        if phase is not None:
+            payload["phase"] = phase
         await self.send_notification("runtime.statusChanged", payload)
 
     async def _publish_agent_runtime_status(
@@ -428,10 +431,11 @@ class BackendRpcClient:
         runtime_id: str,
         status: str,
         error: Mapping[str, Any] | None,
+        phase: Mapping[str, Any] | None = None,
     ) -> None:
         entry = self.agent_runtime_supervisor.entry(runtime_id)
         await self._publish_runtime_status(
-            entry.runtime_type, runtime_id, status, error
+            entry.runtime_type, runtime_id, status, error, phase
         )
 
     async def ingest_notifications(self, notifications: list[dict[str, Any]]) -> None:
