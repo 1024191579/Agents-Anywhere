@@ -130,10 +130,7 @@ final class AppState {
                     guard !Task.isCancelled, authenticationEpoch == epoch else { return }
                     restoreConnectionError = nil
                     startDashboardUpdates()
-                    // Returning to the foreground reopens the dashboard socket, which
-                    // pushes a snapshot; a full HTTP reload is only needed when the
-                    // account changed or the last read is genuinely old.
-                    if accountChanged { await refreshDashboard() } else { await refreshDashboardIfStale(minimumInterval: 30) }
+                    await refreshDashboard()
                     return
                 } catch {
                     guard !Task.isCancelled, authenticationEpoch == epoch, accountSyncID == id else { return }
@@ -744,7 +741,6 @@ final class AppState {
 
     private func applyDashboardSnapshot(_ snapshot: V2DashboardSnapshot) {
         cachedServices?.dashboardRepository.apply(snapshot)
-        lastDashboardRefreshAt = Date()
     }
 
     private func isAuthenticationFailure(_ error: Error) -> Bool {
