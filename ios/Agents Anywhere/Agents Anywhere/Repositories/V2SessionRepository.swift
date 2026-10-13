@@ -526,7 +526,7 @@ final class V2SessionRepository {
         if event.type == "runtime.catalog.updated" || entry.projection?.data.session.connectorStatus != .online {
             invalidateCatalogs(entry)
         }
-        emit(entry)
+        emitAfterBacklog(entry)
         if entry.projection?.data.session.connectorStatus == .online,
            !wasOnline || previousRuntime != entry.projection?.data.session.effectiveRuntimeId {
             try await reconcile(entry)
@@ -601,6 +601,20 @@ final class V2SessionRepository {
         V2SessionObservation(sessionId: entry.id, data: entry.projection?.data, connection: entry.connection, error: entry.error)
     }
 
+    /// Frames buffered during a reconnect or a long reconcile are delivered
+    /// back-to-back without suspending. Publishing once the main queue turns
+    /// again lets the whole backlog apply before the model and rows re-project,
+    /// so catch-up cost is frames × log n instead of frames × n.
+    private func emitAfterBacklog(_ entry: Entry) {
+        guard !entry.emitScheduled else { return }
+        entry.emitScheduled = true
+        DispatchQueue.main.async { [weak self, weak entry] in
+            guard let self, let entry else { return }
+            entry.emitScheduled = false
+            self.emit(entry)
+        }
+    }
+
     /// `persist` marks durable changes (timeline, metadata, cursor, local work).
     /// Connection and connectivity transitions republish without an archive write.
     private func emit(_ entry: Entry, persist: Bool = true) {
@@ -663,6 +677,7 @@ private final class Entry {
     var needsSnapshot = false
     var hasReadLocal = false
     var isDirty = false
+    var emitScheduled = false
     var localReadTask: Task<V2SessionRestore?, Never>?
     var projection: V2SessionProjection?
     var connection = V2SessionConnectionState.inactive
