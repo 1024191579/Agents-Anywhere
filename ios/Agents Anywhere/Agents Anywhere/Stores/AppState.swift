@@ -842,6 +842,9 @@ final class AppState: ObservableObject {
         // the existing session. Commit in-memory/defaults changes only on success.
         try keychain.saveString(token, account: tokenAccount)
         cachedToken = token
+        // A re-login with an unchanged profile must still bind the saved profile
+        // to the new credential fingerprint, since `me` will not change.
+        if let me { restoration.save(profile: me, server: serverURL, token: token) }
         authenticationEpoch = UUID(); accountSyncID = UUID()
         accountSyncTask?.cancel(); accountSyncTask = nil; isRetryingServerConnection = false
         restoreConnectionError = nil

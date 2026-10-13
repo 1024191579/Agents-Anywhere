@@ -46,7 +46,14 @@ Semantic error and availability colors remain separate from the primary color.
   drawing clock runs at up to 60 fps and only until its newest glyphs finish;
   blocks compare by a digest hashed on the parse worker, not character by
   character on the main actor. Initial history and recovery snapshots do not
-  replay reveals.
+  replay reveals. A block that has streamed keeps its renderer branch (paused)
+  when a tool wait or thinking pause ends the reveal, so the pause does not
+  rebuild its Text subtree. Code blocks that are already highlighted wait
+  350 ms of quiet before Prism re-tokenizes them.
+- One socket frame is decoded once, off the main actor, and merged into the
+  projection in place; `V2SessionModel`, the presentation rows and the timeline
+  views compare items by identity fields, so an appended token touches only its
+  own row. Tool/marker rows cache their parsed presentation per item version.
 - Pending user-message removal and authoritative echo insertion happen in the
   same presentation tick. `MarkdownBlockLayout` measures and places each stable
   block with the parent's proposed column width. Its layout-local height cache
