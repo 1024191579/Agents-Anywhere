@@ -7,6 +7,7 @@ from typing import Any, BinaryIO
 
 import httpx
 
+from connector.core.unicode import UTF8_REPLACE_LONE_SURROGATES
 from connector.logging import logger
 from connector.runtime_protocol.host import UploadProgress
 from connector.server.auth import ConnectorAuthenticationError
@@ -233,7 +234,7 @@ class ConnectorIngestClient:
         *, on_progress: UploadProgress | None = None,
     ) -> httpx.Response:
         if on_progress is not None:
-            encoded = json.dumps({"notifications": notifications}, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            encoded = json.dumps({"notifications": notifications}, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8", UTF8_REPLACE_LONE_SURROGATES)
 
             async def body():
                 for offset in range(0, len(encoded), UPLOAD_CHUNK_BYTES):

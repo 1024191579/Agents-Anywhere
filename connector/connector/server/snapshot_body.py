@@ -6,6 +6,7 @@ import tempfile
 from collections.abc import Iterable
 from typing import Any, BinaryIO
 
+from connector.core.unicode import UTF8_REPLACE_LONE_SURROGATES
 from connector.server.runtime_rpc_payloads import server_payload_without_turn_data
 
 
@@ -18,7 +19,7 @@ def snapshot_body(
 
     def encode(value):
         for part in encoder.iterencode(server_payload_without_turn_data(value)):
-            body.write(part.encode("utf-8"))
+            body.write(part.encode("utf-8", UTF8_REPLACE_LONE_SURROGATES))
 
     try:
         binding = {"runtime": runtime, "runtimeId": runtime_id, "sessionId": session_id}
