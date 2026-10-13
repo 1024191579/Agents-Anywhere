@@ -9,7 +9,7 @@ final class ChatTimelineRowModel: Identifiable {
     private(set) var text: String
     private(set) var isRevealing = false
     private(set) var layoutGeneration = 0
-    @ObservationIgnored private var settlesAt: TimeInterval = 0
+    @ObservationIgnored private(set) var settlesAt: TimeInterval = 0
     @ObservationIgnored private var hasFlushed = false
     @ObservationIgnored private var entryCache: (cwd: String?, entry: TimelineEntryPresentation)?
     /// False while a streaming batch withholds the final glyph of the received text.
@@ -158,7 +158,10 @@ final class SessionTimelinePresentation {
                         // once. Without new text, poll briefly to notice arrivals
                         // and settle rows whose reveal has ended.
                         let now = ProcessInfo.processInfo.systemUptime
-                        let wait = self.pending != nil ? self.nextBatchAt - now : Self.idlePoll
+                        // Without new text, sleep until the earliest reveal ends
+                        // instead of waking at a fixed cadence.
+                        let wait = self.pending != nil ? self.nextBatchAt - now
+                            : max(Self.minimumIdleWait, (self.rows.filter(\.isRevealing).map(\.settlesAt).min() ?? now) - now)
                         if wait > 0 {
                             do { try await Task.sleep(for: .seconds(wait)) } catch { return }
                         }
@@ -173,7 +176,7 @@ final class SessionTimelinePresentation {
         }
     }
 
-    private static let idlePoll: TimeInterval = 1.0 / 30
+    private static let minimumIdleWait: TimeInterval = 1.0 / 60
 
     func synchronizePending(_ messages: [V2PendingMessage]) {
         // Change optimistic membership in the same tick that publishes echoes,
