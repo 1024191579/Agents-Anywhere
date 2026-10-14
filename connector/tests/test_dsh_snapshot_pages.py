@@ -101,3 +101,10 @@ def test_exhausted_retries_and_permanent_refusals_stop_the_upload_without_touchi
     with pytest.raises(httpx.HTTPStatusError):
         _run(refused)
     assert len(refused.bodies) == 1 and refused.attempts == [0, 1], "a 4xx is final: no retry, no replay of the first page"
+
+    # Nothing has been replaced yet when the first page fails: surface it at once, as a
+    # single-request snapshot always did, and let the subscription recalibrate.
+    first = Uplink(fail={0: [httpx.ConnectError("reset")]})
+    with pytest.raises(ConnectorNetworkError):
+        _run(first)
+    assert first.attempts == [0] and first.bodies == []

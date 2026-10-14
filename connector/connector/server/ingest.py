@@ -23,8 +23,8 @@ from connector.server.urls import api_v2_url
 FLUSH_WINDOW_SECONDS = 0.02
 FLUSH_MAX = 64
 UPLOAD_CHUNK_BYTES = 64 * 1024
-# A snapshot page that fails for a transient reason is retried this often; the
-# pages behind it are never resent, and the first page never after the second.
+# A snapshot page after the first that fails for a transient reason is retried
+# this often; the pages before it are never resent.
 SNAPSHOT_PAGE_RETRIES = 3
 SNAPSHOT_PAGE_RETRY_BACKOFF_SECONDS = 0.5
 
@@ -124,9 +124,12 @@ class ConnectorIngestClient:
     async def _post_snapshot_pages(self, client, pages: list[BinaryIO], on_progress: UploadProgress | None) -> None:
         # The first page replaces the timeline and the rest append to it, so the
         # Server holds a partial history from the first acceptance until the
-        # last page lands. Pages go out back to back on one connection; a
-        # transient failure retries only the page it hit, and once a later page
-        # was accepted the first is never sent again (it would drop the others).
+        # last page lands. Pages go out back to back on one connection. A
+        # transient failure on a later page retries only that page, so the
+        # partial state is not left behind for a full re-capture; a failure on
+        # the first page (or on a single-page snapshot) surfaces at once, as
+        # before, and the first page is never sent again after a later one was
+        # accepted (it would drop the others).
         for index, page in enumerate(pages):
             attempt = 0
             while True:
@@ -136,7 +139,7 @@ class ConnectorIngestClient:
                     break
                 except ConnectorNetworkError as exc:
                     attempt += 1
-                    if attempt > SNAPSHOT_PAGE_RETRIES:
+                    if index == 0 or attempt > SNAPSHOT_PAGE_RETRIES:
                         raise
                     logger.warning("snapshot page {}/{} failed ({}); retrying", index + 1, len(pages), exc)
                     await asyncio.sleep(SNAPSHOT_PAGE_RETRY_BACKOFF_SECONDS * attempt)
