@@ -12,7 +12,7 @@ from connector.logging import logger
 from connector.runtime_protocol.host import UploadProgress
 from connector.server.auth import ConnectorAuthenticationError
 from connector.server.errors import ConnectorNetworkError
-from connector.server.snapshot_body import snapshot_body
+from connector.server.snapshot_body import SNAPSHOT_PAGE_BYTES, snapshot_pages
 from connector.server.urls import api_v2_url
 
 # HTTP ingest owns explicit bulk sync and disconnected WebSocket fallback.
@@ -23,6 +23,10 @@ from connector.server.urls import api_v2_url
 FLUSH_WINDOW_SECONDS = 0.02
 FLUSH_MAX = 64
 UPLOAD_CHUNK_BYTES = 64 * 1024
+# A snapshot page after the first that fails for a transient reason is retried
+# this often; the pages before it are never resent.
+SNAPSHOT_PAGE_RETRIES = 3
+SNAPSHOT_PAGE_RETRY_BACKOFF_SECONDS = 0.5
 
 AccessTokenProvider = Callable[[bool], Awaitable[str]]
 HttpClientGetter = Callable[[], httpx.AsyncClient | None]
@@ -40,8 +44,11 @@ class ConnectorIngestClient:
         access_token_provider: AccessTokenProvider,
         http_client_getter: HttpClientGetter,
         http_client_factory: HttpClientFactory,
+        *,
+        snapshot_page_bytes: int = SNAPSHOT_PAGE_BYTES,
     ) -> None:
         self._server_url = server_url
+        self._snapshot_page_bytes = snapshot_page_bytes
         self._access_token_provider = access_token_provider
         self._http_client_getter = http_client_getter
         self._http_client_factory = http_client_factory
@@ -83,24 +90,26 @@ class ConnectorIngestClient:
         self, runtime: str, runtime_id: str, session_id: str,
         meta: dict[str, Any], items: Iterable[dict[str, Any]], *, on_progress: UploadProgress | None = None,
     ) -> None:
-        task = asyncio.create_task(asyncio.to_thread(snapshot_body, runtime, runtime_id, session_id, meta, items))
+        task = asyncio.create_task(asyncio.to_thread(
+            snapshot_pages, runtime, runtime_id, session_id, meta, items, page_bytes=self._snapshot_page_bytes,
+        ))
         try:
-            body = await asyncio.shield(task)
+            pages = await asyncio.shield(task)
         except asyncio.CancelledError:
-            (await task).close()
+            for page in await task:
+                page.close()
             raise
         try:
             async with self._post_lock:
                 self._posting = True
                 try:
                     await self._drain_pending(on_progress)
-                    token = await self._access_token_provider(False)
                     client = self._http_client_getter()
                     owned = client is None
                     if client is None:
                         client = self._http_client_factory(60)
                     try:
-                        await self._send_with_auth(lambda token: self._post_snapshot_body(client, token, body, on_progress), token)
+                        await self._post_snapshot_pages(client, pages, on_progress)
                     finally:
                         if owned:
                             await client.aclose()
@@ -109,7 +118,31 @@ class ConnectorIngestClient:
                     if not self.has_pending:
                         self._available.clear()
         finally:
-            body.close()
+            for page in pages:
+                page.close()
+
+    async def _post_snapshot_pages(self, client, pages: list[BinaryIO], on_progress: UploadProgress | None) -> None:
+        # The first page replaces the timeline and the rest append to it, so the
+        # Server holds a partial history from the first acceptance until the
+        # last page lands. Pages go out back to back on one connection. A
+        # transient failure on a later page retries only that page, so the
+        # partial state is not left behind for a full re-capture; a failure on
+        # the first page (or on a single-page snapshot) surfaces at once, as
+        # before, and the first page is never sent again after a later one was
+        # accepted (it would drop the others).
+        for index, page in enumerate(pages):
+            attempt = 0
+            while True:
+                token = await self._access_token_provider(False)
+                try:
+                    await self._send_with_auth(lambda token, page=page: self._post_snapshot_body(client, token, page, on_progress), token)
+                    break
+                except ConnectorNetworkError as exc:
+                    attempt += 1
+                    if index == 0 or attempt > SNAPSHOT_PAGE_RETRIES:
+                        raise
+                    logger.warning("snapshot page {}/{} failed ({}); retrying", index + 1, len(pages), exc)
+                    await asyncio.sleep(SNAPSHOT_PAGE_RETRY_BACKOFF_SECONDS * attempt)
 
     async def _post_snapshot_body(self, client, token, body: BinaryIO, on_progress):
         body.seek(0, 2)
