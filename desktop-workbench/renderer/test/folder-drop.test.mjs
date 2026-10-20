@@ -15,7 +15,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 const { createElement: h, act } = await import("react")
 const { createRoot } = await import("react-dom/client")
 const { NextIntlClientProvider } = await import("next-intl")
-const { toast, Toaster } = await import("sonner")
+const { toast } = await import("sonner")
 
 // Keep the actual sidebar, project lists, translations and toast UI. Only the
 // account/device/API boundary is replaced; no login or real project is needed.
@@ -34,6 +34,7 @@ const fixtureHooks = registerHooks({
 })
 const { AppSidebar } = await import("../src/components/app-sidebar.tsx")
 const { SidebarProvider } = await import("../src/components/ui/sidebar.tsx")
+const { ToasterProvider } = await import("../src/components/toaster-provider.tsx")
 const { dashboardApi } = await import("../src/features/dashboard/api.ts")
 fixtureHooks.deregister()
 sourceHooks.deregister()
@@ -60,7 +61,7 @@ async function render(t, { locale = "zh-CN", projects = [], folder = "/work/proj
   document.body.append(container)
   const root = createRoot(container)
   await act(async () => root.render(h(NextIntlClientProvider, { locale, messages, timeZone: "Asia/Shanghai" },
-    h(SidebarProvider, null, h(AppSidebar, { contained: true }), h(Toaster, { duration: Infinity })),
+    h(SidebarProvider, null, h(AppSidebar, { contained: true }), h(ToasterProvider)),
   )))
   t.after(async () => {
     await act(async () => { toast.dismiss(); await new Promise(resolve => setTimeout(resolve, 5)) })
@@ -87,7 +88,13 @@ for (const locale of ["zh-CN", "en"]) {
     const { calls, container, messages } = await render(t, { locale, projects: [project] })
     const event = await drag(container, "drop")
     assert.equal(event.defaultPrevented, true)
-    assert.ok(container.querySelector("[data-sonner-toast]").textContent.includes(messages.folderAlreadyAdded))
+    const notification = container.querySelector("[data-sonner-toast]")
+    assert.ok(notification.textContent.includes(messages.folderAlreadyAdded))
+    assert.ok(notification.classList.contains("cn-toast"))
+    const toaster = container.querySelector("[data-sonner-toaster]")
+    assert.equal(toaster.dataset.yPosition, "top")
+    assert.equal(toaster.dataset.xPosition, "center")
+    assert.notEqual(notification.dataset.richColors, "true")
     assert.deepEqual(calls.creates, [])
   })
 
