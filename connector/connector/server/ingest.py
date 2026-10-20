@@ -11,7 +11,7 @@ from connector.core.unicode import UTF8_REPLACE_LONE_SURROGATES
 from connector.logging import logger
 from connector.runtime_protocol.host import UploadProgress
 from connector.server.auth import ConnectorAuthenticationError
-from connector.server.errors import ConnectorNetworkError
+from connector.server.errors import ConnectorIngestClosedError, ConnectorNetworkError
 from connector.server.snapshot_body import SNAPSHOT_PAGE_BYTES, snapshot_pages
 from connector.server.urls import api_v2_url
 
@@ -65,7 +65,7 @@ class ConnectorIngestClient:
         return self._posting or bool(self._inflight) or not self._notify_queue.empty()
 
     def close(self, error: Exception | None = None) -> None:
-        self._closed = error or RuntimeError("connector ingest is closed")
+        self._closed = error or ConnectorIngestClosedError("connector ingest is closed")
         # Wake blocked producers. They check _closed again after admission.
         while not self._notify_queue.empty():
             self._notify_queue.get_nowait()

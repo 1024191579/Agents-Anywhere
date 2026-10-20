@@ -190,6 +190,12 @@ Codex 的 SDK 与 IPC 接管路径均遵循此规则，包括新一轮发送和�
 notice registry 中，可通过 `get_session_notices` 重新获取，不作为 Server 数据库中的
 当前状态保存，也不保证 Connector 重启后保留。
 
+`notice_upsert` 的可恢复传输异常和默认通知队列关闭会转换为
+`RuntimeNoticePublishError`。附件 warning 与 resolved 发布遇到此异常时，保留本地
+registry 更新、记录日志并继续交付正文和成功附件。已入队通知沿用原有重试；入队
+失败不保证自动重发，可通过 notice 查询获取当前状态。取消、认证失败和程序错误
+仍向外传播。此处理不改变通知队列的背压等待或增加发布超时。
+
 这条提醒只说明 AA 下载失败；附件交付后 Runtime 自身的读取、解析或执行错误仍由
 原生 Runtime 的错误路径处理。DSH 的全量附件准备失败即终止发送的行为不变。
 

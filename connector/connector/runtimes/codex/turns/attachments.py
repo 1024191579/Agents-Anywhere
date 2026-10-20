@@ -5,6 +5,7 @@ from dataclasses import replace
 from connector.logging import logger
 from connector.runtime_protocol import RuntimeAttachment, SessionNotice
 from connector.runtime_protocol.attachments import attachment_target
+from connector.runtime_protocol.errors import RuntimeNoticePublishError
 from connector.runtime_protocol.host import RuntimeHostClient
 from connector.runtimes.codex.domain.notices import CodexNoticeRegistry
 from connector.runtimes.codex.sdk.runtime_client import CodexTurnInputAttachment
@@ -49,6 +50,7 @@ async def materialize_codex_attachments(
             )
         )
     notice_id = f"notice_codex_attachment_delivery_{session_id}"
+    notice: SessionNotice | None = None
     if failed:
         names = "\n".join(f"- {item.name or item.file_id}" for item in failed)
         notice = SessionNotice(
@@ -66,12 +68,18 @@ async def materialize_codex_attachments(
             severity="warning",
             context={"failedFileIds": [item.file_id for item in failed]},
         )
-        notices.upsert(notice)
-        await host.notice_upsert(notice)
     elif attachments:
         previous = notices.get(notice_id)
         if previous is not None and previous.status == "open":
             notice = replace(previous, status="resolved")
-            notices.upsert(notice)
+    if notice is not None:
+        notices.upsert(notice)
+        try:
             await host.notice_upsert(notice)
+        except RuntimeNoticePublishError:
+            logger.warning(
+                "Codex attachment notice publication failed; local state retained notice_id={} status={}",
+                notice.notice_id,
+                notice.status,
+            )
     return tuple(materialized)
