@@ -30,6 +30,8 @@ and file-upload requests that return 401 refresh the access token through
 one refresh. A missing or rejected refresh token, or a retry that still returns
 401, sends the user back to sign-in; network and server errors preserve the
 saved session. Refreshing does not extend the original refresh-token expiry.
+Project loading tracks the saved login independently of the access token, so a
+successful refresh keeps the request's results and clears its loading state.
 Terminal connections and reconnects validate the session before opening their
 WebSocket and use the current access token while preserving the replay cursor.
 

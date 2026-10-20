@@ -4,6 +4,7 @@ import android.content.Context
 import com.agentsanywhere.app.api.AuthResponse
 import com.agentsanywhere.app.api.MobileLoginExchangeResponse
 import com.agentsanywhere.app.api.normalizeServerOrigin
+import java.util.UUID
 
 class AuthSessionStore(context: Context) : AuthSessionReader, MobileAuthSessionStore {
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -33,6 +34,16 @@ class AuthSessionStore(context: Context) : AuthSessionReader, MobileAuthSessionS
     }
 
     @Synchronized
+    fun readAuthSessionId(): String? {
+        if (!hasAuthSession()) return null
+        // Give existing saved logins an identity without tying it to a renewable token.
+        return preferences.getString(KEY_AUTH_SESSION_ID, null)
+            ?: UUID.randomUUID().toString().also { id ->
+                preferences.edit().putString(KEY_AUTH_SESSION_ID, id).apply()
+            }
+    }
+
+    @Synchronized
     fun saveServerUrl(serverUrl: String) {
         val origin = serverUrl.asServerOrigin()
         preferences.edit()
@@ -44,6 +55,7 @@ class AuthSessionStore(context: Context) : AuthSessionReader, MobileAuthSessionS
     @Synchronized
     fun saveAuthSession(serverUrl: String, auth: AuthResponse) {
         preferences.edit()
+            .putString(KEY_AUTH_SESSION_ID, UUID.randomUUID().toString())
             .putString(KEY_SERVER_URL, serverUrl.asServerOrigin())
             .putString(KEY_ACCESS_TOKEN, auth.accessToken)
             .putString(KEY_TOKEN_TYPE, auth.tokenType)
@@ -57,6 +69,7 @@ class AuthSessionStore(context: Context) : AuthSessionReader, MobileAuthSessionS
     @Synchronized
     fun saveMobileAuthSession(serverUrl: String, exchange: MobileLoginExchangeResponse) {
         preferences.edit()
+            .putString(KEY_AUTH_SESSION_ID, UUID.randomUUID().toString())
             .putString(KEY_SERVER_URL, serverUrl.asServerOrigin())
             .putString(KEY_ACCESS_TOKEN, exchange.auth.accessToken)
             .putString(KEY_TOKEN_TYPE, exchange.auth.tokenType)
@@ -115,6 +128,7 @@ class AuthSessionStore(context: Context) : AuthSessionReader, MobileAuthSessionS
 
     companion object {
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_AUTH_SESSION_ID = "auth_session_id"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_TOKEN_TYPE = "token_type"
         private const val KEY_USER_ID = "user_id"

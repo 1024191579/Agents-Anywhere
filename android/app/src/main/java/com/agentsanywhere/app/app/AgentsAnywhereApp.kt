@@ -363,10 +363,11 @@ fun AgentsAnywhereApp(
     }
 
     suspend fun reloadProjects(): Result<List<AgentProject>> {
-        val token = sessionStore.readAccessToken()
+        val authSessionId = sessionStore.readAuthSessionId()
+            ?: return Result.failure(IllegalStateException("Sign in again to load projects."))
         val version = ++projectsRequestVersion
         return sessionsController.loadProjects().onSuccess { projects ->
-            if (sessionStore.readAccessToken() == token && projectsRequestVersion == version) {
+            if (sessionStore.readAuthSessionId() == authSessionId && projectsRequestVersion == version) {
                 sessionsState = sessionsState.copy(projects = projects)
             }
         }
@@ -374,7 +375,7 @@ fun AgentsAnywhereApp(
 
     fun loadProjectSessions(projectId: String, status: ProjectSessionStatusFilter = ProjectSessionStatusFilter.Active) {
         if (projectId.isBlank()) return
-        val token = sessionStore.readAccessToken()
+        val authSessionId = sessionStore.readAuthSessionId() ?: return
         status.archiveStates.forEach { archived ->
             val key = ProjectSessionLoadKey(projectId, archived)
             if (key in loadingProjectRequests) return@forEach
@@ -385,23 +386,23 @@ fun AgentsAnywhereApp(
             scope.launch {
                 try {
                     projectLoadSlots.withPermit {
-                        if (sessionStore.readAccessToken() != token || sessionsState.projects.none { it.id == projectId }) return@withPermit
+                        if (sessionStore.readAuthSessionId() != authSessionId || sessionsState.projects.none { it.id == projectId }) return@withPermit
                         sessionsController.loadProjectSessions(projectId, sessionsState.devices, archived)
                             .onSuccess { sessions ->
-                                if (sessionStore.readAccessToken() == token && sessionsState.projects.any { it.id == projectId }) {
+                                if (sessionStore.readAuthSessionId() == authSessionId && sessionsState.projects.any { it.id == projectId }) {
                                     val retained = projectSessionsById[projectId].orEmpty().filter { it.archived != archived }
                                     projectSessionsById = projectSessionsById + (projectId to (retained + sessions).associateBy { it.id }.values.toList())
                                     projectSessionsLoadedAt = projectSessionsLoadedAt + (key to SystemClock.elapsedRealtime())
                                 }
                             }.onFailure { error ->
                                 if (error is kotlinx.coroutines.CancellationException) throw error
-                                if (sessionStore.readAccessToken() == token) {
+                                if (sessionStore.readAuthSessionId() == authSessionId) {
                                     projectSessionErrors = projectSessionErrors + (key to (error.message ?: "Could not load project sessions."))
                                 }
                             }
                     }
                 } finally {
-                    if (sessionStore.readAccessToken() == token) {
+                    if (sessionStore.readAuthSessionId() == authSessionId) {
                         loadingProjectRequests = loadingProjectRequests - key
                     }
                 }
