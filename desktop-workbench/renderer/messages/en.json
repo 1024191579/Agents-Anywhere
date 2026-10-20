@@ -789,6 +789,7 @@
       "dropFolder": "Drop a local folder to add a project",
       "folderAdded": "Project added from the local folder.",
       "folderAlreadyAdded": "This folder is already a project.",
+      "singleFolderRequired": "Drop one folder at a time.",
       "folderRequired": "Drop a folder, not a file.",
       "localDeviceRequired": "Connect this computer's local device before adding a folder project.",
       "device": "Device",

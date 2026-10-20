@@ -28,6 +28,20 @@ Connector running. Click the tray icon or choose **打开 Agents Anywhere** to
 reopen the window. Choose **退出** from the tray menu to confirm exit and stop
 the local Connector; cancelling keeps the app running.
 
+## Add projects by dropping folders
+
+Drop one local folder anywhere over the Desktop sidebar to add it as a project
+on this computer's online local Connector. The name comes from the folder name;
+automatically discovered projects keep their existing names when added manually.
+A successful drop switches to the project list and expands it.
+
+An already-added folder displays an informational message without creating a
+second project. Ordinary files and unavailable paths display a folder-required
+message. Dropping multiple items (including a mixture of files and folders)
+displays “Drop one folder at a time” and adds none of them. The drop cue remains
+centered in the sidebar while its project list scrolls. This native drop action
+is unavailable in a browser, where local filesystem paths cannot be resolved.
+
 ## Run
 
 From the repository root, the local Desktop launcher starts Docker-backed

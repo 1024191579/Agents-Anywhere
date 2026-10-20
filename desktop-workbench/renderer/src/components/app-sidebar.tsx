@@ -174,9 +174,14 @@ export function AppSidebar({ contained = false }: { contained?: boolean }) {
     if (!updated) toast.error(t("projects.updateFailed"))
   }, [t, updateProject])
 
-  const handleFolderDrop = async (file: File | undefined) => {
+  const handleFolderDrop = async (files: FileList) => {
     const folderBridge = getDesktopWorkbenchBridge()?.files
     if (!folderBridge) return
+    if (files.length > 1) {
+      toast.error(t("projects.singleFolderRequired"))
+      return
+    }
+    const file = files[0]
     try {
       const folder = file ? await folderBridge.droppedFolderPath(file) : null
       if (!folder) {
@@ -286,7 +291,7 @@ export function AppSidebar({ contained = false }: { contained?: boolean }) {
         if (!acceptsFolderDrop(event)) return
         event.preventDefault()
         setFolderDropActive(false)
-        void handleFolderDrop(event.dataTransfer.files[0])
+        void handleFolderDrop(event.dataTransfer.files)
       }}
     >
       <SidebarHeader className="gap-0 px-4 pb-2 pt-4">
