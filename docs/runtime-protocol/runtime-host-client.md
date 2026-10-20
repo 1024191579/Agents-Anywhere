@@ -184,6 +184,7 @@ Materializes a user-uploaded attachment for runtime use.
 
 Codex 和 Claude Code 适配器下载附件失败时，仍会继续发送正文及成功下载的附件，
 但会通过现有 `notice_upsert` 发布非阻塞的 warning，列出未交付的文件并提示重新发送。
+Codex 的 SDK 与 IPC 接管路径均遵循此规则，包括新一轮发送和运行中追加消息。
 每个会话保留一条当前附件交付提醒；新的失败更新这条提醒，下一次带附件的发送全部
 下载成功后将其标为 resolved。纯文本发送不会清除提醒。当前提醒保存在 Runtime 的
 notice registry 中，可通过 `get_session_notices` 重新获取，不作为 Server 数据库中的
@@ -200,3 +201,7 @@ Provides adapter-owned local sync state. Keys must be runtime-namespaced, for ex
 codex/history/cursor/{thread_id}
 claude/history/cursor/{session_id}
 ```
+
+## DSH 完整快照提交
+
+实际 Host API 提供 `publish_runtime_snapshot(runtime, session_id, meta, items, runtime_id=None, on_progress=None)`。`items` 是惰性迭代器，在 await 返回前消费；调用方必须保留页面 spool 至成功或失败结束。RuntimeInstanceHost 绑定本机实例 ID，Connector 负责字段过滤和临时文件编码，仍使用既有 ingest 请求。只有最终完整提交成功才返回；本地页面暂存不能推进 checkpoint。详见 [DSH 大历史上传](../dsh-snapshot-uploads.md)。
