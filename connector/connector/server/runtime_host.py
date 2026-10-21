@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import time
 import asyncio
 import copy
-from collections.abc import Iterable, Awaitable, Callable, Mapping
+import time
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from typing import Any
+
+import httpx
+from websockets.exceptions import ConnectionClosed
 
 from connector.logging import logger
 from connector.runtime_protocol import (
@@ -17,7 +20,9 @@ from connector.runtime_protocol import (
     SessionNotice,
     SessionSourceObservation,
 )
+from connector.runtime_protocol.errors import RuntimeNoticePublishError
 from connector.runtime_protocol.host import RuntimeHostClient, UploadProgress
+from connector.server.errors import ConnectorIngestClosedError, ConnectorNetworkError
 from connector.server.runtime_rpc_payloads import (
     DeferredServerPayload,
     capability_set_payload,
@@ -27,8 +32,12 @@ from connector.server.runtime_rpc_payloads import (
     session_notice_payload,
     session_source_observation_payload,
 )
-from connector.server.sync_state import JsonSyncStateStore, RuntimeSyncState, SyncStateStore
 from connector.server.runtime_storage import RuntimeStorageManager
+from connector.server.sync_state import (
+    JsonSyncStateStore,
+    RuntimeSyncState,
+    SyncStateStore,
+)
 
 BackendNotifier = Callable[[str, dict[str, Any]], Awaitable[None]]
 AttachmentDownloader = Callable[[str, str], Awaitable[tuple[bytes, str, str]]]
@@ -315,10 +324,22 @@ class ConnectorRuntimeHost(RuntimeHostClient):
         self,
         notice: SessionNotice,
     ) -> None:
-        await self._notify_server(
-            "notice.upsert",
-            session_notice_payload(notice),
-        )
+        payload = session_notice_payload(notice)
+        try:
+            await self._notify_server("notice.upsert", payload)
+        except (
+            ConnectionError,
+            TimeoutError,
+            httpx.NetworkError,
+            httpx.TimeoutException,
+            httpx.RemoteProtocolError,
+            ConnectionClosed,
+            ConnectorNetworkError,
+            ConnectorIngestClosedError,
+        ) as exc:
+            raise RuntimeNoticePublishError(
+                f"could not publish notice {notice.notice_id}"
+            ) from exc
 
     async def runtime_error(
         self,
