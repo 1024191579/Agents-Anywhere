@@ -41,6 +41,7 @@ import { readDesktopSettings } from "./desktop-settings";
 import { ConnectorLogStore } from "./log-store";
 import { windowMaterialOptions } from "./window-material";
 import buildInfo from "../build-info.json";
+import { droppedFolderPath } from "./dropped-folder";
 import config from "../config.json";
 import { proxyDesktopApi } from "./api-proxy";
 import {
@@ -622,6 +623,10 @@ async function requireLocalOwnership(): Promise<void> {
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.handle("workbench:files:droppedFolderPath", (event, value: unknown) => {
+    assertTrustedRenderer(event);
+    return droppedFolderPath(value);
+  });
   ipcMain.handle("workbench:ownership:getState", event => {
     assertTrustedRenderer(event);
     return ownership;
