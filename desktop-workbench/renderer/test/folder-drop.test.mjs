@@ -72,10 +72,11 @@ async function render(t, { locale = "zh-CN", projects = [], folder = "/work/proj
   return { calls, container, messages: messages.dashboard.projects }
 }
 
-async function drag(container, type, names = ["project"], types = ["Files"]) {
+async function drag(container, type, names = ["project"], types = ["Files"], entries = []) {
   const event = new window.Event(type, { bubbles: true, cancelable: true })
   const files = names.map(name => new window.File([], name))
-  Object.defineProperty(event, "dataTransfer", { value: { types, files, dropEffect: "none" } })
+  const items = entries.map(entry => ({ kind: "file", webkitGetAsEntry: () => entry }))
+  Object.defineProperty(event, "dataTransfer", { value: { types, files, items, dropEffect: "none" } })
   await act(async () => {
     container.querySelector('[data-slot="sidebar-header"]').dispatchEvent(event)
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -133,7 +134,7 @@ test("an offline local device displays guidance without listing or creating proj
 
 test("the drop cue sits outside scrollable content and disappears after a drop", async t => {
   const { container, messages } = await render(t)
-  const event = await drag(container, "dragover")
+  const event = await drag(container, "dragover", ["project"], ["Files"], [{ isDirectory: true }])
   assert.equal(event.defaultPrevented, true)
   const cue = [...container.querySelectorAll("span")].find(node => node.textContent === messages.dropFolder)
   assert.ok(cue)

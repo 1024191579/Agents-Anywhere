@@ -41,6 +41,11 @@ message. Dropping multiple items (including a mixture of files and folders)
 displays “Drop one folder at a time” and adds none of them. The drop cue remains
 centered in the sidebar while its project list scrolls. This native drop action
 is unavailable in a browser, where local filesystem paths cannot be resolved.
+The cue appears only when drag metadata confirms a directory. If the OS hides
+that information until drop, the sidebar stays unobstructed and still accepts
+the drop for native directory validation. Cancelling a drag, leaving the window,
+or dropping elsewhere clears the cue; an idle timeout also clears it if an
+external drag ends without sending a cancellation event to the app.
 
 ## Run
 

@@ -90,8 +90,39 @@ export function AppSidebar({ contained = false }: { contained?: boolean }) {
   const [projectEditor, setProjectEditor] = React.useState<ProjectEditorState>(null)
   const [projectToArchive, setProjectToArchive] = React.useState<ProjectView | null>(null)
   const [folderDropActive, setFolderDropActive] = React.useState(false)
+  const folderDropTimeout = React.useRef<number | null>(null)
   const [projectSessionStatus, setProjectSessionStatus] =
     React.useState<ProjectSessionStatusFilter>("active")
+
+  const resetFolderDrop = React.useCallback(() => {
+    if (folderDropTimeout.current !== null) {
+      window.clearTimeout(folderDropTimeout.current)
+      folderDropTimeout.current = null
+    }
+    setFolderDropActive(false)
+  }, [])
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") resetFolderDrop()
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) resetFolderDrop()
+    }
+    window.addEventListener("dragend", resetFolderDrop)
+    window.addEventListener("blur", resetFolderDrop)
+    window.addEventListener("drop", resetFolderDrop, true)
+    window.addEventListener("keydown", onKeyDown, true)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => {
+      window.removeEventListener("dragend", resetFolderDrop)
+      window.removeEventListener("blur", resetFolderDrop)
+      window.removeEventListener("drop", resetFolderDrop, true)
+      window.removeEventListener("keydown", onKeyDown, true)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      if (folderDropTimeout.current !== null) window.clearTimeout(folderDropTimeout.current)
+    }
+  }, [resetFolderDrop])
 
   const pinnedProjects = React.useMemo(
     () => selectPinnedProjects(projects, sessions, projectSessionStatus, filter),
@@ -213,7 +244,7 @@ export function AppSidebar({ contained = false }: { contained?: boolean }) {
     }
   }
 
-  const acceptsFolderDrop = (event: React.DragEvent) => Boolean(getDesktopWorkbenchBridge()?.files)
+  const acceptsFileDrop = (event: React.DragEvent) => Boolean(getDesktopWorkbenchBridge()?.files)
     && Array.from(event.dataTransfer.types).includes("Files")
 
   const showSessionUnarchivedToast = React.useCallback((sessionId: string) => {
@@ -279,18 +310,33 @@ export function AppSidebar({ contained = false }: { contained?: boolean }) {
       contained={contained}
       className="border-sidebar-border [&_[data-slot=sidebar-inner]]:relative"
       onDragOver={(event) => {
-        if (!acceptsFolderDrop(event)) return
+        if (!acceptsFileDrop(event)) {
+          resetFolderDrop()
+          return
+        }
         event.preventDefault()
         event.dataTransfer.dropEffect = "copy"
+        // Protected drag data may hide entries until drop. Unknown items must
+        // not show a folder cue; the native bridge still validates them on drop.
+        const directory = Array.from(event.dataTransfer.items ?? [])
+          .some((item) => item.kind === "file" && item.webkitGetAsEntry?.()?.isDirectory)
+        if (!directory) {
+          resetFolderDrop()
+          return
+        }
         setFolderDropActive(true)
+        if (folderDropTimeout.current !== null) window.clearTimeout(folderDropTimeout.current)
+        // Cancelling an external OS drag need not deliver dragend or keydown.
+        // Active drags keep emitting dragover, including while stationary.
+        folderDropTimeout.current = window.setTimeout(resetFolderDrop, 1500)
       }}
       onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFolderDropActive(false)
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) resetFolderDrop()
       }}
       onDrop={(event) => {
-        if (!acceptsFolderDrop(event)) return
+        resetFolderDrop()
+        if (!acceptsFileDrop(event)) return
         event.preventDefault()
-        setFolderDropActive(false)
         void handleFolderDrop(event.dataTransfer.files)
       }}
     >
