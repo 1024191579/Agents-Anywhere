@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+from weakref import WeakValueDictionary
 
 from connector.core.json_kv import JsonKeyValueStore
 from connector.logging import logger
@@ -31,6 +32,7 @@ from connector.runtime_protocol import (
 from connector.runtime_protocol.host import RuntimeHostClient
 from connector.runtimes.codex.catalogs.reader import CodexCatalogReader
 from connector.runtimes.codex.domain import sessions as codex_sessions
+from connector.runtimes.codex.domain.async_inputs import AsyncInputSubmissions
 from connector.runtimes.codex.domain.capabilities import (
     codex_capability_context,
     codex_runtime_capabilities,
@@ -42,6 +44,11 @@ from connector.runtimes.codex.domain.commands import (
     filter_commands,
     kill_chatgpt_command,
     open_in_codex_app_command,
+)
+from connector.runtimes.codex.domain.input_requests import (
+    async_input_call_from_context,
+    is_async_input_request_context,
+    is_cancelled_input_action,
 )
 from connector.runtimes.codex.domain.notices import CodexNoticeRegistry
 from connector.runtimes.codex.domain.pending_messages import (
@@ -109,6 +116,13 @@ class CodexRuntime(AgentRuntime):
         )
         self._source_states = RuntimeSessionSourceStateCache("codex", self.host)
         self._notices = CodexNoticeRegistry()
+        self._async_submissions = AsyncInputSubmissions(
+            getattr(self.host, "session_namespace", self.host.connector_id),
+            self.client_message_kv,
+        )
+        self._interaction_locks: WeakValueDictionary[str, asyncio.Lock] = (
+            WeakValueDictionary()
+        )
         self._pending_messages = PendingClientMessageRegistry(
             connector_id=getattr(
                 self.host,
@@ -128,6 +142,7 @@ class CodexRuntime(AgentRuntime):
             timeline=self._timeline,
             notices=self._notices,
         )
+        self._notifications.notice_handler.async_submissions = self._async_submissions
         self._lifecycle = CodexRuntimeLifecycle(
             client=self.client,
             notifications=self._notifications,
@@ -148,6 +163,7 @@ class CodexRuntime(AgentRuntime):
             list_permission_catalog=self._catalogs.list_permission_catalog,
             pending_messages=self._pending_messages,
             timeline=self._timeline,
+            notice_handler=self._notifications.notice_handler,
         )
         self._turns = CodexTurnController(
             host=self.host,
@@ -162,6 +178,9 @@ class CodexRuntime(AgentRuntime):
             pending_messages=self._pending_messages,
             timeline=self._timeline,
         )
+        # Async answers are ordinary start/steer writes and must use the same
+        # owner routing as messages, including after a Connector restart.
+        self._turns.interactions.turn_actions = self
 
     @property
     def identity(self) -> RuntimeIdentity:
@@ -211,6 +230,7 @@ class CodexRuntime(AgentRuntime):
                 timeline=self._timeline,
                 read_model_catalog=self._ipc_model_catalog,
                 read_permission_catalog=self._ipc_permission_catalog,
+                async_submissions=self._async_submissions,
             )
             self.ipc_service = CodexIpcService(
                 client=self.ipc,
@@ -737,6 +757,10 @@ class CodexRuntime(AgentRuntime):
         external_session_id: str | None = None,
     ) -> tuple[SessionNotice, ...]:
         await self._bind_state_session(session_id, external_session_id)
+        await self._session_reader.refresh_async_input_notices(
+            session_id,
+            external_session_id,
+        )
         return self._notices.current_for_session(session_id)
 
     async def get_session_capabilities(
@@ -1035,6 +1059,72 @@ class CodexRuntime(AgentRuntime):
         action_id: str,
         input_data: Mapping[str, Any] | None = None,
     ) -> RuntimeOperationResult:
+        lock = self._interaction_locks.setdefault(notice_id, asyncio.Lock())
+        async with lock:
+            notice = self._notices.get(notice_id)
+            call = (
+                async_input_call_from_context(notice.context)
+                if notice is not None and is_async_input_request_context(notice.context)
+                else None
+            )
+            if call is not None:
+                status = self._async_submissions.status(call.call_id)
+                if status in {"answered", "cancelled"}:
+                    return RuntimeOperationResult(
+                        ok=True,
+                        result={"resolved": True, "alreadyProcessed": True,
+                                "noticeId": notice_id, "sessionId": session_id},
+                    )
+                if status == "sending" and not is_cancelled_input_action(action_id):
+                    # A process may have stopped after Codex accepted the
+                    # message but before its receipt was saved. Reconcile from
+                    # history, never send a second answer speculatively.
+                    await self._session_reader.refresh_async_input_notices(
+                        session_id, notice.context.get("threadId"), force=True,
+                    )
+                    if self._async_submissions.status(call.call_id) == "answered":
+                        return RuntimeOperationResult(
+                            ok=True,
+                            result={"resolved": True, "alreadyProcessed": True,
+                                    "noticeId": notice_id, "sessionId": session_id},
+                        )
+                    return RuntimeOperationResult(
+                        ok=False,
+                        code="codex_async_input_outcome_unknown",
+                        message="The previous answer may have been sent. Refresh the chat before retrying; you can still send an ordinary message.",
+                        result={"noticeId": notice_id, "sessionId": session_id},
+                    )
+                if not is_cancelled_input_action(action_id):
+                    # Validate before recording an in-flight delivery.
+                    call.reply_envelope(input_data)
+                    self._async_submissions.record(call.call_id, "sending")
+            result = await self._respond_interaction(
+                session_id, notice_id, action_id, input_data,
+            )
+            if call is not None and result.ok:
+                self._async_submissions.record(
+                    call.call_id,
+                    "cancelled" if is_cancelled_input_action(action_id) else "answered",
+                )
+            elif call is not None and "outcome_unknown" not in (result.code or ""):
+                self._async_submissions.forget(call.call_id)
+            return result
+
+    async def _respond_interaction(
+        self,
+        session_id: str,
+        notice_id: str,
+        action_id: str,
+        input_data: Mapping[str, Any] | None,
+    ) -> RuntimeOperationResult:
+        notice = self._notices.get(notice_id)
+        if notice is not None and is_async_input_request_context(notice.context):
+            return await self._turns.respond_interaction(
+                session_id=session_id,
+                notice_id=notice_id,
+                action_id=action_id,
+                input_data=input_data,
+            )
         controller = self._ipc_controller()
         thread = controller.ipc_notice_thread(notice_id) if controller is not None else None
         if thread is not None and controller is not None:
