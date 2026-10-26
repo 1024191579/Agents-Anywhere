@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { promisify } from 'node:util'
@@ -82,6 +82,8 @@ export interface ConnectorProcess {
   prepare(settings?: ConnectorSettings): Promise<void>
   start(binding: BoundDevice, apiBaseUrl: string, signal: AbortSignal): Promise<void>
   stop(): Promise<void>
+  /** Stops the Connector and drops its dependency environment, so the next start reinstalls it. */
+  resetEnvironment(): Promise<void>
   assertHealthy(): Promise<void>
   hasRuntimeLogs?(): boolean
   resolveLogsPath?(): Promise<string | null>
@@ -336,6 +338,24 @@ export class SourceConnector implements ConnectorProcess {
     if (this.stopping) return this.stopping
     this.stopping = this.stopChild().finally(async () => { await this.logs.flush(); this.failure = null; this.stopping = null })
     return this.stopping
+  }
+
+  /**
+   * A half-downloaded or broken install survives every restart, because uv reuses whatever the
+   * environment and the project copy already hold. Only the plugin-owned pieces go: the venv and
+   * the materialized project with its uv.lock. The uv cache is the user's and shared with other
+   * projects, so it is only pruned of the dangling entries an interrupted download left behind.
+   */
+  async resetEnvironment(): Promise<void> {
+    await this.stop()
+    this.projectDir = null
+    for (const name of ['connector-venv', 'connector-source']) {
+      // Windows can hold a file briefly after the child exits.
+      await rm(join(this.config.stateRoot, name), { recursive: true, force: true, maxRetries: 5 })
+    }
+    const executable = await resolveUv(this.config, this.settings()).catch(() => null)
+    if (executable) { try { await this.prune(executable) } catch { /* Housekeeping only. */ } }
+    this.diagnostics.log('info', 'connector.environment_reset', {})
   }
 
   private async stopChild(): Promise<void> {
