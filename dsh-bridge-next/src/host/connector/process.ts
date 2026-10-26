@@ -14,7 +14,7 @@ import { LogsServiceClient } from '../generated/connector-logs.js'
 import { RuntimeDiagnostics, RuntimeRpcLogger } from '../dsh-runtime/diagnostics.js'
 import { RpcLogOutput } from '../dsh-runtime/log-output.js'
 import { readRuntimeLogPage } from '../dsh-runtime/log-reader.js'
-import { resolveUv } from './environment.js'
+import { resolveUv, withPackageIndexes } from './environment.js'
 import { ConnectorLogs } from './logs.js'
 import { materializeConnectorProject } from './project.js'
 
@@ -256,7 +256,6 @@ export class SourceConnector implements ConnectorProcess {
     this.diagnostics.log('info', 'connector.starting', { connectorId: binding.connectorId, apiBaseUrl })
     const executable = await resolveUv(this.config, settings)
     const command = executable ?? (settings.uvPath || this.config.uvPath)
-    const pypiIndexUrl = settings.uvPypiIndexUrl || 'https://pypi.org/simple'
     signal.throwIfAborted()
     // 不依赖 prepare() 的调用顺序：start() 自己也要保证项目副本就位。
     const projectDir = this.projectDir ??= await materializeConnectorProject(this.config)
@@ -268,7 +267,7 @@ export class SourceConnector implements ConnectorProcess {
       cwd: projectDir,
       windowsHide: true,
       detached: process.platform !== 'win32',
-      env: {
+      env: withPackageIndexes({
         ...process.env,
         ...(typeof process.env['NO_PROXY'] === 'string' ? { NO_PROXY: process.env['NO_PROXY'].replaceAll('[::1]', '::1') } : {}),
         ...(typeof process.env['no_proxy'] === 'string' ? { no_proxy: process.env['no_proxy'].replaceAll('[::1]', '::1') } : {}),
@@ -280,10 +279,7 @@ export class SourceConnector implements ConnectorProcess {
         PYTHONUNBUFFERED: '1',
         UV_HTTP_TIMEOUT: process.env['UV_HTTP_TIMEOUT'] || UV_READ_TIMEOUT_SECONDS,
         UV_PYTHON_INSTALL_MIRROR: settings.uvPythonInstallMirror || 'https://github.com/astral-sh/python-build-standalone/releases/download',
-        UV_DEFAULT_INDEX: pypiIndexUrl,
-        UV_INDEX_URL: pypiIndexUrl,
-        PIP_INDEX_URL: pypiIndexUrl,
-      },
+      }, settings.uvPypiIndexUrl),
     })
     this.child = child
     child.stdout.setEncoding('utf8')

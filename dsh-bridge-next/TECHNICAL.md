@@ -162,7 +162,7 @@ Host 配置位于 DSH 的插件配置行。常用项如下：
 | `connectorSourceDir` | 包内 `lib/bundled-connector`；覆盖时必须为绝对路径 |
 | `uvPath` | 优先使用显式配置或 `UV_PATH`，否则使用 npm 依赖 `@dataiku/uv` 中的平台二进制；依赖不可用时尝试系统 PATH |
 
-设置页将 uv 路径、Python 下载镜像、PyPI 镜像和同步间隔原子写入 `connector-settings.json`；下次启动时恢复，uv 路径覆盖配置行中的 `uvPath`。首次初始化且没有保存过镜像选择时，Host 根据系统首选语言自动设置镜像：包含中文时直接使用阿里云，否则使用官方 PyPI，不弹出询问。macOS 读取系统语言列表，其他平台使用 Intl / POSIX 语言环境，headless 启动同样生效。选择在创建 venv 前持久化，并通过 `UV_DEFAULT_INDEX`、`UV_INDEX_URL` 和 `PIP_INDEX_URL` 传给实际子进程；已保存的镜像（包括手动选择默认 PyPI）保持不变。恢复出厂设置会重新应用系统默认镜像。
+设置页将 uv 路径、Python 下载镜像、PyPI 镜像和同步间隔原子写入 `connector-settings.json`；下次启动时恢复，uv 路径覆盖配置行中的 `uvPath`。首次初始化且没有保存过镜像选择时，Host 根据系统首选语言自动设置镜像：包含中文时直接使用阿里云，否则使用官方 PyPI，不弹出询问。macOS 读取系统语言列表，其他平台使用 Intl / POSIX 语言环境，headless 启动同样生效。选择在创建 venv 前持久化后再传给实际子进程：所选镜像是 uv 的首选源（`UV_INDEX`），官方 PyPI 是后备源（`UV_DEFAULT_INDEX`、`UV_INDEX_URL`）；`PIP_INDEX_URL` 跟随所选镜像，选择官方 PyPI 时清除继承来的 `UV_INDEX`。uv 会从第一个有该包的源下载，所以镜像上没有的包会改从 PyPI 下载，例如清华、中科大、北外镜像都没有 `openai-codex`。镜像只有旧版本时不会回退到 PyPI。规则与 Desktop 相同；已保存的镜像（包括手动选择默认 PyPI）保持不变。恢复出厂设置会重新应用系统默认镜像。
 
 Python 下载镜像独立于 PyPI 镜像，提供官方源与 npmmirror。首次初始化缺少该设置时，中文系统默认使用 npmmirror，其他语言使用官方源；已有的手动选择保持不变，恢复出厂设置重新应用语言默认值。选择通过 `UV_PYTHON_INSTALL_MIRROR` 传给 uv，仅影响解释器下载。`@dataiku/uv` 的平台可选依赖由包管理器安装，Host 直接执行其中的原生二进制，不要求 postinstall 脚本运行。
 

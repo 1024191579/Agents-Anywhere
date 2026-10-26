@@ -176,11 +176,13 @@ async function fixture(mode = 'normal', settings: ConnectorSettings = DEFAULT_CO
     assert.doesNotMatch(JSON.stringify(args), /PRIVATE-DEVICE-TOKEN/)
     assert.equal(options.env?.UV_PROJECT_ENVIRONMENT, join(root, 'data', 'connector-venv'))
     assert.equal(options.env?.DSH_HOME, join(root, 'dsh-home'))
-    const expectedIndex = settings.uvPypiIndexUrl || 'https://pypi.org/simple'
+    const mirror = settings.uvPypiIndexUrl
     assert.equal(options.env?.UV_PYTHON_INSTALL_MIRROR, settings.uvPythonInstallMirror || 'https://github.com/astral-sh/python-build-standalone/releases/download')
-    assert.equal(options.env?.UV_DEFAULT_INDEX, expectedIndex)
-    assert.equal(options.env?.UV_INDEX_URL, expectedIndex)
-    assert.equal(options.env?.PIP_INDEX_URL, expectedIndex)
+    // The mirror comes first and PyPI is the fallback for packages it lacks.
+    assert.equal(options.env?.UV_DEFAULT_INDEX, 'https://pypi.org/simple')
+    assert.equal(options.env?.UV_INDEX_URL, 'https://pypi.org/simple')
+    assert.equal(options.env?.UV_INDEX, mirror || undefined)
+    assert.equal(options.env?.PIP_INDEX_URL, mirror || 'https://pypi.org/simple')
     assert.equal(options.env?.UV_HTTP_TIMEOUT, process.env['UV_HTTP_TIMEOUT'] || '60')
     child = spawn(command, [script, mode, JSON.stringify(endpoint.rendezvous), key], options)
     child.once('spawn', didSpawn)
