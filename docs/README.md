@@ -17,7 +17,7 @@
 | Android 构建 | [Android](../android/README.md) |
 | 架构和 API | [Server 架构](server-architecture.md)、[API](api/README.md) |
 | DSH 大历史内存 | [实现与验证](dsh-snapshot-uploads.md) |
-| DSH 慢速历史上传 | [实现与验证](dsh-slow-upload.md)、[2.1.0 配套说明（未发布）](releases/2.1.0.md) |
+| DSH 慢速历史上传 | [实现与验证](dsh-slow-upload.md)、[2.1.0 发布说明](releases/2.1.0.md) |
 | 长会话流式更新卡顿 | [客户端优化方案与验证](performance/streaming-timeline-83.md) |
 | Runtime 和本机协议 | [Runtime protocol](runtime-protocol/README.md)、[Timeline 工具身份](runtime-protocol/timeline-identity.md)、[本机协议](../contracts/local-machine/2.0/README.md)、[Codex IPC 接管](codex-ipc-takeover.md) |
 
