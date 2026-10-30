@@ -6,7 +6,7 @@
 
 ### Android
 
-- 表格改为卡片样式：顶部可以复制、下载 CSV、全屏查看，两列表格完整显示、三列及以上可以左右滑动（[#123](https://github.com/anywhere-labs/Agents-Anywhere/pull/123)）
+- 表格改为卡片样式：顶部可以复制、下载 CSV、全屏查看，两列表格完整显示、三列及以上可以左右滑动（[#486](https://github.com/anywhere-labs/Agents-Anywhere/pull/486)）
 
 
 ### 会话创建与消息交付
