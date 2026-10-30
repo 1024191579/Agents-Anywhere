@@ -4,6 +4,11 @@
 
 ## 未发布
 
+### Android
+
+- 表格改为卡片样式：顶部可以复制、下载 CSV、全屏查看，两列表格完整显示、三列及以上可以左右滑动（[#123](https://github.com/anywhere-labs/Agents-Anywhere/pull/123)）
+
+
 ### 会话创建与消息交付
 
 - Connector 上报的时间线条目序号超出范围时只拒绝这条上报，同批其他消息照常保存，不再让整个会话之后的消息都存不进数据库；升级前已经积压的条目会按原顺序排到时间线末尾保存，持续写入失败的会话也不再每秒重试刷屏日志。（[#464](https://github.com/anywhere-labs/Agents-Anywhere/pull/464)）

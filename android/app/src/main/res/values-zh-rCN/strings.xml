@@ -707,4 +707,18 @@
     <string name="announcement_title">公告</string>
     <string name="announcement_published_at">发布于 %1$s</string>
     <string name="announcement_acknowledge">我知道了</string>
+    <string name="markdown_table_title">表格</string>
+    <string name="markdown_table_copy">复制表格</string>
+    <string name="markdown_table_download">下载 CSV</string>
+    <string name="markdown_table_fullscreen">全屏查看</string>
+    <string name="markdown_table_close">关闭</string>
+    <string name="markdown_table_saved">已保存到“下载/AgentsAnywhere”</string>
+    <string name="markdown_table_save_failed">保存失败</string>
+    <string name="markdown_table_cell_copied">已复制</string>
+    <string name="markdown_table_phone_hint">%1$s 可能是一个电话号码</string>
+    <string name="markdown_table_call">呼叫</string>
+    <string name="markdown_table_copy_number">复制号码</string>
+    <string name="markdown_table_add_contact">添加到通讯录</string>
+    <string name="markdown_table_cancel">取消</string>
+    <string name="markdown_table_open_failed">无法打开，请重试</string>
 </resources>
